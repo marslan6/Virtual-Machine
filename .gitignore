@@ -1,32 +1,129 @@
-# Prerequisites
-*.d
+# Build outputs
+build/
+*.exe
+*.out
+*.app
+*.o
+*.obj
+*.dll
+*.so
+*.dylib
+*.lib
+*.a
 
 # Compiled Object files
 *.slo
 *.lo
-*.o
-*.obj
 
 # Precompiled Headers
 *.gch
 *.pch
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
+# Prerequisites
+*.d
 
 # Compiled Static libraries
 *.lai
 *.la
-*.a
-*.lib
 
-# Executables
-*.exe
+# Fortran module files (if applicable)
+*.mod
+*.smod
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.vcxproj.user
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.VC.opendb
+ipch/
+*.aps
+*.ncb
+*.opendb
+*.cachefile
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Intermediate build files
+obj/
+intermediate/
+Debug/
+Release/
+x64/
+x86/
+
+# Compiler outputs
+*.log
+*.ilk
+*.pdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.iobj
+*.ipdb
+
+# MinGW
+*.exe.stackdump
+
+# CMake (if used in future)
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# OS specific
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+desktop.ini
+
+# Backup files
+*.bak
+*.backup
+
+# Documentation build artifacts
+docs/*.html
+docs/*.pdf
+*.aux
 *.out
-*.app
+
+# Test outputs
+test_results/
+*.test
+
+# Profiling
+*.profdata
+*.profraw
+gmon.out
+
+# Temporary files
+temp/
+tmp/
+*.temp
+
+# IDE specific
+.idea/
+*.iml
+*.sublime-*
+
+# Core dumps
+core
+core.*
