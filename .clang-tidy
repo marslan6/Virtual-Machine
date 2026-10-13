@@ -1,0 +1,36 @@
+# clang-tidy configuration. Picked up automatically by the VS Code C/C++
+# extension (and by clangd / the clang-tidy CLI) for every file under this
+# directory. Warnings show up in the Problems panel.
+#
+# Checks are a whitelist: "-*" turns everything off, then whole families are
+# switched back on, then individual noisy checks are switched back off.
+# Full list: https://clang.llvm.org/extra/clang-tidy/checks/list.html
+Checks: >
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-non-private-member-variables-in-classes
+
+# Only diagnose headers that belong to this project; never system or
+# third-party headers. Matched against the full path of the header.
+HeaderFilterRegex: '.*/(src|include|tests|bench)/.*'
+
+# Nothing is fatal: everything stays a warning in the Problems panel.
+WarningsAsErrors: ''
+
+# No .clang-format in this project yet, so don't try to reformat fix-its.
+FormatStyle: none
