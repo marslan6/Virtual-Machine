@@ -24,6 +24,11 @@ set(CMAKE_CXX_STANDARD 23)
 # configure step instead of silently falling back to an older standard.
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Collect every .cpp under src/ into SOURCES, then build them into one
+# executable. GLOB avoids listing all 20 files by hand. CONFIGURE_DEPENDS makes
+# CMake re-check the glob on each build, so adding or deleting a .cpp is picked
+# up automatically without manually re-running cmake — the main downside of
+# globbing. Ref: https://cmake.org/cmake/help/latest/command/file.html#filesystem
 file(GLOB SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 add_executable(executableBinary ${SOURCES})
 
