@@ -10,7 +10,7 @@ set(CMAKE_CXX_COMPILER g++-15)
 # Project name (and implicitly enables C and C++ support).
 # Required exactly once per project.
 # TODO: Configure project name
-project(CMake-Cpp-23-Template)
+project(Virtual-Machine)
 
 # Emit out/compile_commands.json: the exact compiler flags for every source
 # file. clang-tidy (and clangd) read it so they analyze the code with the same
@@ -24,10 +24,8 @@ set(CMAKE_CXX_STANDARD 23)
 # configure step instead of silently falling back to an older standard.
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Define the executable "executableBinary" and list its source files.
-# Add more .cpp files here as the project grows, e.g. src/OrderBook.cpp.
-# TODO: Configure executable name
-add_executable(executableBinary src/main.cpp)
+file(GLOB SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+add_executable(executableBinary ${SOURCES})
 
 # TODO: Configure executable name
 # Warnings — after the target, scoped to it. Warnings often hint at bugs.
