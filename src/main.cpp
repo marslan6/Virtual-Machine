@@ -4,17 +4,17 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright © 2024 Mehmet Arslan
+Copyright ï¿½ 2024 Mehmet Arslan
 */
 
 
 #include <iostream>
-#include "CPU.h"
-#include "ArithmeticLogicUnit.h"
-#include "MemoryIO.h"
-#include "OS.h"
-#include "Trap.h"
-#include "VirtualMachine.h"
+#include "./../include/CPU.h"
+#include "./../include/ArithmeticLogicUnit.h"
+#include "./../include/MemoryIO.h"
+#include "./../include/OS.h"
+#include "./../include/Trap.h"
+#include "./../include/VirtualMachine.h"
 
 int main(int argc, const char* argv[])
 {

@@ -4,12 +4,12 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright © 2024 Mehmet Arslan
+Copyright ï¿½ 2024 Mehmet Arslan
 */
 
 
-#include "Trap.h"
-#include "CPU.h"
+#include "./../include/Trap.h"
+#include "./../include/CPU.h"
 
 
 /**

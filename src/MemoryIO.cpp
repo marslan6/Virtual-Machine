@@ -4,13 +4,13 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright © 2024 Mehmet Arslan
+Copyright ï¿½ 2024 Mehmet Arslan
 */
 
 
-#include "MemoryIO.h"
-#include "CPU.h"
-#include "OS.h"
+#include "./../include/MemoryIO.h"
+#include "./../include/CPU.h"
+#include "./../include/OS.h"
 
 
 /**
