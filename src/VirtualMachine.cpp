@@ -7,6 +7,7 @@ This code is licensed under the MIT License.
 Copyright � 2024 Mehmet Arslan
 */
 
+#include <cstdlib>
 
 #include "./../include/VirtualMachine.h"
 #include "./../include/CPU.h"

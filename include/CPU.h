@@ -4,7 +4,7 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright © 2024 Mehmet Arslan
+Copyright ï¿½ 2024 Mehmet Arslan
 */
 
 
@@ -25,9 +25,11 @@ Copyright © 2024 Mehmet Arslan
 #include <stdio.h>
 #include <stdint.h>
 #include <signal.h>
-// windows only
-#include <Windows.h>
-#include <conio.h>  // _kbhit
+
+#if defined(_WIN32)
+    #include <Windows.h>
+    #include <conio.h>  // _kbhit
+#endif
 
 
 class Trap;
