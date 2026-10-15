@@ -69,6 +69,7 @@ void VirtualMachine::RunVirtualMachine(int argc, const char* argv[])
         case OP_ADD:
             aluPtr->ADD(instruction);
             break;
+            
         case OP_AND:
             aluPtr->AND(instruction);
             break;
