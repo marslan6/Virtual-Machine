@@ -10,13 +10,19 @@ Copyright � 2024 Mehmet Arslan
 
 #include "./../include/OS.h"
 
-#include <cstdint>
-#include <stdio.h>
-#include <stdint.h>
-#include <signal.h>
-// windows only
-#include <Windows.h>
-#include <conio.h>  // _kbhit
+#include <cstdio>
+
+#if defined(_WIN32)
+    #include <Windows.h>
+    #include <conio.h>  // _kbhit
+#elif defined(__linux__)
+    #include <termios.h>     // termios, tcgetattr, tcsetattr, tcflush
+    #include <unistd.h>      // STDIN_FILENO
+    #include <sys/select.h>  // select, fd_set
+    #include <cstdlib>       // exit
+#else
+    #error "Unsupported Operating System!"
+#endif
 
 
 /**
@@ -40,7 +46,8 @@ OS::OS()
  * allowing for the processing of multiple characters at once.
  */
 void OS::DisableInputBuffering()
-{
+{   
+#if defined(_WIN32)
     // Get the handle for standard input
     hStdin = GetStdHandle(STD_INPUT_HANDLE);
 
@@ -61,6 +68,25 @@ void OS::DisableInputBuffering()
     // Clear the input buffer to discard any pending input
     // This ensures that any characters typed before changing the mode are not processed by the application
     FlushConsoleInputBuffer(hStdin);
+#elif defined(__linux__)
+    // hStdin is the standard input file descriptor (STDIN_FILENO), set in the header.
+
+    // Save the current terminal attributes so they can be restored on exit.
+    tcgetattr(hStdin, &fdwOldMode);
+
+    // Start from the saved attributes and clear the flags that cause buffering.
+    // Clearing ICANON disables canonical (line-buffered) mode, so reads return
+    // immediately instead of waiting for Enter.
+    // Clearing ECHO stops typed characters from being echoed back to the screen.
+    fdwMode = fdwOldMode;
+    fdwMode.c_lflag &= ~(ICANON | ECHO);
+
+    // Apply the new attributes immediately.
+    tcsetattr(hStdin, TCSANOW, &fdwMode);
+
+    // Discard any input that was already typed before the mode change.
+    tcflush(hStdin, TCIFLUSH);
+#endif
 }
 
 
@@ -71,7 +97,11 @@ void OS::DisableInputBuffering()
  */
 void OS::RestoreInputBuffering()
 {
+#if defined(_WIN32)
     SetConsoleMode(this->hStdin, fdwOldMode);
+#elif defined(__linux__)
+    tcsetattr(this->hStdin, TCSANOW, &this->fdwOldMode);
+#endif
 }
 
 
@@ -84,7 +114,23 @@ void OS::RestoreInputBuffering()
  */
 uint16_t OS::CheckKey()
 {
+#if defined(_WIN32)
     return WaitForSingleObject(hStdin, 1000) == WAIT_OBJECT_0 && _kbhit();
+#elif defined(__linux__)
+    // Build a descriptor set containing only standard input.
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(hStdin, &readfds);
+
+    // Wait up to 1 second for input to become available, mirroring the
+    // 1000 ms timeout used by WaitForSingleObject on Windows.
+    struct timeval timeout = {};
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+
+    // select() returns > 0 when at least one descriptor is ready to read.
+    return static_cast<uint16_t>(select(hStdin + 1, &readfds, nullptr, nullptr, &timeout) > 0);
+#endif
 }
 
 
@@ -98,6 +144,7 @@ uint16_t OS::CheckKey()
  */
 void OS::HandleInterrupt(int signal)
 {
+    (void)signal; // Parameter required by the signal-handler signature but unused here
     RestoreInputBuffering(); // Restore input buffering settings
     printf("\n"); // Print newline character
     exit(-2); // Exit program with exit code -2

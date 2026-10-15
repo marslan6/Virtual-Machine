@@ -4,26 +4,37 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright © 2024 Mehmet Arslan
+Copyright ï¿½ 2024 Mehmet Arslan
 */
 
 
 #ifndef OS_H
 #define OS_H
 
-
-#include <Windows.h>
 #include <cstdint>
 
+#if defined(_WIN32)
+    #include <windows.h>
+#elif defined(__linux__)
+    #include <termios.h>
+    #include <unistd.h>
+#else
+    #error "Unsupported Operating System!"
+#endif
 
 class OS
 {
 private:
-    // Handle to the standard input device.
-    HANDLE hStdin = INVALID_HANDLE_VALUE;
-    // Variables to store the input mode flags.
-    DWORD fdwMode, fdwOldMode;
-
+    #if defined(_WIN32)
+        // Handle to the standard input device.
+        HANDLE hStdin = INVALID_HANDLE_VALUE;
+        // Variables to store the input mode flags.
+        DWORD fdwMode, fdwOldMode;
+    #elif defined(__linux__)
+        int hStdin = STDIN_FILENO;
+        struct termios fdwMode, fdwOldMode;
+    #endif
+    
 public:
     OS();
     void DisableInputBuffering();
