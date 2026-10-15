@@ -4,7 +4,7 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright © 2024 Mehmet Arslan
+Copyright ï¿½ 2024 Mehmet Arslan
 */
 
 
@@ -18,7 +18,7 @@ Copyright © 2024 Mehmet Arslan
 class CPU;
 
 
-enum TrapCodes : uint16_t
+enum TrapCodes : std::uint16_t
 {
     TRAP_GETC = 0x0020,  // get character from keyboard, not echoed onto the terminal
     TRAP_OUT = 0x0021,   // output a character
@@ -32,14 +32,14 @@ enum TrapCodes : uint16_t
 class Trap
 {
 private:
-    uint16_t* memoryPtr;
-    uint16_t* registersPtr;
+    std::uint16_t* memoryPtr;
+    std::uint16_t* registersPtr;
     CPU* cpuPtr;
 
 public:
-    Trap(uint16_t* memory, uint16_t* registers, CPU* cpu);
+    Trap(std::uint16_t* memory, std::uint16_t* registers, CPU* cpu);
 
-    void Proxy(uint16_t instruction);
+    void Proxy(std::uint16_t instruction);
 
     void GETC();
     void OUTC();

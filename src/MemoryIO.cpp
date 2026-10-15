@@ -21,7 +21,7 @@ Copyright � 2024 Mehmet Arslan
  * @param memory Pointer to the memory array.
  * @param os Pointer to the OS object.
  */
-MemoryIO::MemoryIO(uint16_t* memory, OS* os)
+MemoryIO::MemoryIO(std::uint16_t* memory, OS* os)
 {
     memoryPtr = memory;
     osPtr = os;
@@ -38,7 +38,7 @@ MemoryIO::MemoryIO(uint16_t* memory, OS* os)
  * @param memoryAddress The address to read from.
  * @return The 16-bit value read from memory.
  */
-uint16_t MemoryIO::Read(uint16_t memoryAddress)
+std::uint16_t MemoryIO::Read(std::uint16_t memoryAddress)
 {
     // Check if the memory address corresponds to the keyboard status register
     if (memoryAddress == MemoryMappedRegisters::MR_KBSR)
@@ -70,7 +70,7 @@ uint16_t MemoryIO::Read(uint16_t memoryAddress)
  * @param address The address to write to.
  * @param value The 16-bit value to write.
  */
-void MemoryIO::Write(uint16_t address, uint16_t value)
+void MemoryIO::Write(std::uint16_t address, std::uint16_t value)
 {
     memoryPtr[address] = value;
 }

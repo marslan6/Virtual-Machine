@@ -22,7 +22,7 @@ Copyright � 2024 Mehmet Arslan
  * @param registers Pointer to the registers array of the virtual machine.
  * @param cpu Pointer to the CPU object controlling the virtual machine's operation.
  */
-Trap::Trap(uint16_t* memory, uint16_t* registers, CPU* cpu)
+Trap::Trap(std::uint16_t* memory, std::uint16_t* registers, CPU* cpu)
 {
     memoryPtr = memory;
     registersPtr = registers;
@@ -37,7 +37,7 @@ Trap::Trap(uint16_t* memory, uint16_t* registers, CPU* cpu)
  *
  * @param instruction The 16 bits of instruction to execute.
  */
-void Trap::Proxy(uint16_t instruction)
+void Trap::Proxy(std::uint16_t instruction)
 {
     // Save the return address
     registersPtr[Registers::R_7] = registersPtr[Registers::R_PC];
@@ -75,7 +75,7 @@ void Trap::Proxy(uint16_t instruction)
 void Trap::GETC()
 {
     // Read character from console
-    registersPtr[Registers::R_0] = (uint16_t)getchar();
+    registersPtr[Registers::R_0] = (std::uint16_t)getchar();
     // Update condition flags based on the result
     cpuPtr->UpdateFlags(Registers::R_0);
 }
@@ -102,7 +102,7 @@ void Trap::OUTC()
 void Trap::PUTS()
 {
     // Iterate through memory and output characters until null terminator is encountered
-    uint16_t* c = memoryPtr + registersPtr[Registers::R_0];
+    std::uint16_t* c = memoryPtr + registersPtr[Registers::R_0];
     while (*c)
     {
         // Output character to console
@@ -131,7 +131,7 @@ void Trap::INC()
     // Flush output buffer to ensure immediate display
     fflush(stdout);
     // Store ASCII value of character in register R0
-    registersPtr[Registers::R_0] = (uint16_t)c;
+    registersPtr[Registers::R_0] = (std::uint16_t)c;
     // Update condition flags based on the result
     cpuPtr->UpdateFlags(Registers::R_0);
 }
@@ -145,7 +145,7 @@ void Trap::INC()
 void Trap::PUTSP()
 {
     // Iterate through memory and output characters until null terminator is encountered
-    uint16_t* c = memoryPtr + registersPtr[Registers::R_0];
+    std::uint16_t* c = memoryPtr + registersPtr[Registers::R_0];
     while (*c)
     {
         // Extract lower 8 bits of the word
@@ -176,5 +176,5 @@ void Trap::HALT()
     // Flush output buffer to ensure immediate display
     fflush(stdout);
     // Set 'running' flag to false to halt execution
-    cpuPtr->running = 0;
+    cpuPtr->running = false;
 }

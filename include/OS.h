@@ -39,7 +39,7 @@ public:
     OS();
     void DisableInputBuffering();
     void RestoreInputBuffering();
-    uint16_t CheckKey();
+    std::uint16_t CheckKey();
     void HandleInterrupt(int signal);
     static void HandleInterruptWrapper(int signal);
 };

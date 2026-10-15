@@ -4,7 +4,7 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright © 2024 Mehmet Arslan
+Copyright ï¿½ 2024 Mehmet Arslan
 */
 
 
@@ -18,7 +18,7 @@ Copyright © 2024 Mehmet Arslan
 class OS;
 
 
-enum MemoryMappedRegisters : uint16_t
+enum MemoryMappedRegisters : std::uint16_t
 {
 	MR_KBSR = 0xFE00, // keyboard status
 	MR_KBDR = 0xFE02  // keyboard data
@@ -28,13 +28,13 @@ enum MemoryMappedRegisters : uint16_t
 class MemoryIO
 {
 private:
-	uint16_t* memoryPtr;
+	std::uint16_t* memoryPtr;
 	OS* osPtr;
 
 public:
-	MemoryIO(uint16_t* memory, OS* os);
+	MemoryIO(std::uint16_t* memory, OS* os);
 
-	uint16_t Read(uint16_t memoryAddress);
-	void Write(uint16_t address, uint16_t value);
+	std::uint16_t Read(std::uint16_t memoryAddress);
+	void Write(std::uint16_t address, std::uint16_t value);
 };
 #endif

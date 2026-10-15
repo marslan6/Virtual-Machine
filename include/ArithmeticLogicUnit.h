@@ -4,7 +4,7 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright © 2024 Mehmet Arslan
+Copyright ï¿½ 2024 Mehmet Arslan
 */
 
 
@@ -19,7 +19,7 @@ class MemoryIO;
 class CPU;
 
 
-enum Opcodes : uint16_t
+enum Opcodes : std::uint16_t
 {
     OP_BR = 0, // branch
     OP_ADD,    // add 
@@ -43,33 +43,33 @@ enum Opcodes : uint16_t
 class ArithmeticLogicUnit
 {
 private:
-    uint16_t* memoryPtr;
-    uint16_t* registersPtr;
+    std::uint16_t* memoryPtr;
+    std::uint16_t* registersPtr;
     MemoryIO* memoryIOPtr;
     CPU* cpuPtr;
 
 public:
-    ArithmeticLogicUnit(uint16_t* memory, uint16_t* registers, MemoryIO* memoryIO, CPU* cpu);
+    ArithmeticLogicUnit(std::uint16_t* memory, std::uint16_t* registers, MemoryIO* memoryIO, CPU* cpu);
 
-    uint16_t SignExtend(uint16_t immNumber, int immNumberLength) const;
-    uint16_t Swap16(uint16_t number);
+    std::uint16_t SignExtend(std::uint16_t immNumber, int immNumberLength) const;
+    std::uint16_t Swap16(std::uint16_t number);
 
-    void ADD(uint16_t instruction);
-    void AND(uint16_t instruction);
-    void NOT(uint16_t instruction);
+    void ADD(std::uint16_t instruction);
+    void AND(std::uint16_t instruction);
+    void NOT(std::uint16_t instruction);
 
-    void BR(uint16_t instruction);
-    void JMP(uint16_t instruction);
-    void JSR(uint16_t instruction);
+    void BR(std::uint16_t instruction);
+    void JMP(std::uint16_t instruction);
+    void JSR(std::uint16_t instruction);
 
-    void LD(uint16_t instruction);
-    void LDR(uint16_t instruction);
-    void LEA(uint16_t instruction);
+    void LD(std::uint16_t instruction);
+    void LDR(std::uint16_t instruction);
+    void LEA(std::uint16_t instruction);
 
-    void ST(uint16_t instruction);
-    void STI(uint16_t instruction);
-    void STR(uint16_t instruction);
+    void ST(std::uint16_t instruction);
+    void STI(std::uint16_t instruction);
+    void STR(std::uint16_t instruction);
 
-    void LDI(uint16_t instruction);
+    void LDI(std::uint16_t instruction);
 };
 #endif

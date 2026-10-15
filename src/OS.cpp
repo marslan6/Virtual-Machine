@@ -112,7 +112,7 @@ void OS::RestoreInputBuffering()
  *
  * @return True if a key is pressed within the timeout, false otherwise.
  */
-uint16_t OS::CheckKey()
+std::uint16_t OS::CheckKey()
 {
 #if defined(_WIN32)
     return WaitForSingleObject(hStdin, 1000) == WAIT_OBJECT_0 && _kbhit();
@@ -129,7 +129,7 @@ uint16_t OS::CheckKey()
     timeout.tv_usec = 0;
 
     // select() returns > 0 when at least one descriptor is ready to read.
-    return static_cast<uint16_t>(select(hStdin + 1, &readfds, nullptr, nullptr, &timeout) > 0);
+    return static_cast<std::uint16_t>(select(hStdin + 1, &readfds, nullptr, nullptr, &timeout) > 0);
 #endif
 }
 

@@ -59,10 +59,10 @@ void VirtualMachine::RunVirtualMachine(int argc, const char* argv[])
     {
 
         // Fetch Instruction. Read the memory location pointed by program counter.
-        uint16_t instruction = memoryIOPtr->Read(cpuPtr->registers[Registers::R_PC]++);
+        std::uint16_t instruction = memoryIOPtr->Read(cpuPtr->registers[Registers::R_PC]++);
 
         // Extract the opcode from the instruction by considering bits [15:12]
-        uint16_t operation = (instruction >> 12);
+        std::uint16_t operation = (instruction >> 12);
 
         switch (operation)
         {
