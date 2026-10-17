@@ -26,9 +26,7 @@ class OS
 {
 private:
     #if defined(_WIN32)
-        // Handle to the standard input device.
         HANDLE hStdin = INVALID_HANDLE_VALUE;
-        // Variables to store the input mode flags.
         DWORD fdwMode, fdwOldMode;
     #elif defined(__linux__)
         int hStdin = STDIN_FILENO;
