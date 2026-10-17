@@ -3,9 +3,8 @@
 #include "./../include/OS.h"
 
 
-MemoryIO::MemoryIO(std::span<Word16> memory, OS* os) : memory(memory)
+MemoryIO::MemoryIO(std::span<Word16> memory, OS* os) : memory(memory), osPtr(os)
 {
-    osPtr = os;
 }
 
 
