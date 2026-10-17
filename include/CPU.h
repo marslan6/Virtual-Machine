@@ -1,103 +1,65 @@
-/*
-Author: Mehmet Arslan
-GitHub: https://github.com/htmos6
-
-This code is licensed under the MIT License.
-
-Copyright � 2024 Mehmet Arslan
-*/
-
-
 #ifndef CPU_H
 #define CPU_H
 
-// LC-3 Model Used 
-// Define a macro to represent the maximum memory size, calculated at compile time.
-// The maximum memory size is specified as 128 kilobytes (KB).
-#define MEMORY_MAX (1 << 16)
-
-// Virtual Machine includes total number of 10 registers.
-#define REGISTER_COUNT 10
-
-
 #include <cstdio>
 #include <cstdint>
-#include <stdio.h>
-#include <stdint.h>
-#include <signal.h>
+#include <bit>
+#include <array>
 
 #if defined(_WIN32)
     #include <Windows.h>
-    #include <conio.h>  // _kbhit
+    #include <conio.h>
 #endif
 
+// LC-3 model: 65536 16-bit words of memory, 10 registers.
+inline constexpr std::size_t   kMemoryMax     = std::size_t{1} << 16;  // 65536 words
+inline constexpr std::uint16_t kRegisterCount = 10;
+
+// Address the program counter starts at on reset.
+inline constexpr std::uint16_t kPcStart = 0x3000;
+
+// Condition flags written into the COND register. Exactly one is set at a
+// time (result is positive, zero, or negative).
+namespace flag
+{
+    inline constexpr std::uint16_t Positive = 0b001;
+    inline constexpr std::uint16_t Zero     = 0b010;
+    inline constexpr std::uint16_t Negative = 0b100;
+}
 
 class Trap;
 class ArithmeticLogicUnit;
 class MemoryIO;
 class OS;
 
-
-enum ConditionFlags : uint16_t
+// Index of each register in the register file.
+enum class Register : std::uint8_t
 {
-    // The condition flags represent the state of a computation's result.
-    // They are stored in the last 3 bits of a 16-bit unsigned integer.
-    // The flag results can be retrieved from there.
-
-    // The POSITIVE flag indicates that the result is positive.
-    FL_POSITIVE = (1 << 0),
-
-    // The ZERO flag indicates that the result is zero.
-    FL_ZERO = (1 << 1),
-
-    // The NEGATIVE flag indicates that the result is negative.
-    FL_NEGATIVE = (1 << 2)
+    R0, R1, R2, R3, R4, R5, R6, R7,
+    PC,    // 8 - program counter
+    COND,  // 9 - condition flags
 };
-
-
-enum Registers : uint16_t
-{
-	R_0 = 0,
-	R_1,
-	R_2,
-	R_3,
-	R_4,
-	R_5,
-	R_6,
-	R_7,
-	R_PC, // Program Counter
-	R_COND, // Condition Flags
-};
-
-
-enum PC : uint16_t
-{
-    PC_START = 0x3000
-};
-
 
 class CPU
 {
-public:
-    // Array to store 16-bit registers.
-	uint16_t registers[REGISTER_COUNT];
+    std::array<std::uint16_t, kRegisterCount> registers{};
+    std::array<std::uint16_t, kMemoryMax>     memory{};
 
-    // Ensure that each element of the "memory" array stores 16 bits of data.
-    // If "uint16_t" is not explicitly specified (and "int" is used instead), 
-    // the size of each element might vary depending on the compiler and system,
-    // potentially being interpreted as either 16 or 32 bits.
-    uint16_t memory[MEMORY_MAX];
-
-    // Boolean flag to control the execution state of the Virtual Machine.
-    int running = 1;
+    [[nodiscard]] std::uint16_t read_register(Register register_id) const noexcept;
+    [[nodiscard]] std::uint16_t read_register(uint16_t register_id) const;
+    void write_register(Register register_id, std::uint16_t value) noexcept;
+    
+    [[nodiscard]] std::uint16_t get_condition_flag() const noexcept;
+    void set_condition_flag(std::uint16_t value) noexcept;
 
 public:
-	CPU();
+    bool running = true;
+
+    CPU();
     ~CPU();
-		
-    void UpdateFlags(uint16_t DR);
-
+    void UpdateFlags(const std::uint16_t register_id);
     void ReadImageFile(FILE* file, ArithmeticLogicUnit* alu);
-    int ReadImage(const char* imagePath, ArithmeticLogicUnit* alu);
+    int  ReadImage(const char* imagePath, ArithmeticLogicUnit* alu);
 };
+
 #endif

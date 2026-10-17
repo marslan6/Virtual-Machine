@@ -8,6 +8,9 @@ Copyright � 2024 Mehmet Arslan
 */
 
 
+#include <exception>
+#include <stdexcept>
+#include <utility>
 #define _CRT_SECURE_NO_DEPRECATE
 
 
@@ -20,73 +23,74 @@ Copyright � 2024 Mehmet Arslan
 #include "./../include/OS.h"
 #include "./../include/CPU.h"
 
-
-/**
- * @brief Initializes the CPU object.
- *
- * This constructor initializes the CPU object by setting the default condition flag to zero
- * and setting the Program Counter (PC) to the starting position.
- */
 CPU::CPU()
 {
-    // Set the default condition flag to zero
-    registers[Registers::R_COND] = ConditionFlags::FL_ZERO;
-
-    // Set the Program Counter (PC) to the starting position (default: 0x3000)
-    registers[Registers::R_PC] = PC::PC_START;
+    set_condition_flag(flag::Zero);
+    write_register(Register::PC, kPcStart);
 }
 
-
-/**
- * @brief Destroys the CPU object.
- *
- * This destructor does not perform any specific actions as the CPU object is being destroyed.
- */
 CPU::~CPU()
 {
 }
 
-
-/**
- * @brief Updates the condition flags based on the value in the specified register.
- *
- * This function updates the condition flags based on the value stored in the specified destination register.
- *
- * @param DR The index of the destination register whose value is used to update the flags.
- */
-void CPU::UpdateFlags(uint16_t DR)
+std::uint16_t CPU::read_register(Register register_id) const noexcept
 {
-    if (registers[DR] == 0)
+    return registers.at(std::to_underlying(register_id));
+}
+
+std::uint16_t CPU::read_register(uint16_t register_id) const
+{
+    if (register_id >= kRegisterCount)
+    {
+        throw std::out_of_range("Register index out of range!");
+    }
+    
+    return registers.at(register_id);
+}
+
+void CPU::write_register(Register register_id, std::uint16_t value) noexcept
+{
+    registers.at(std::to_underlying(register_id)) = value;
+}
+
+std::uint16_t CPU::get_condition_flag() const noexcept        
+{ 
+    return read_register(Register::COND); 
+}
+
+void CPU::set_condition_flag(std::uint16_t value) noexcept
+{ 
+    write_register(Register::COND, value); 
+}
+
+void CPU::UpdateFlags(const std::uint16_t register_id)
+{
+    if (register_id < 0 || register_id >= kRegisterCount)
+    {
+        throw std::out_of_range("Register index out of range!");
+    }
+
+    if (read_register(register_id) == 0U)
     {
         // Set the zero flag if the value in the register is zero
-        registers[Registers::R_COND] = ConditionFlags::FL_ZERO;
+        set_condition_flag(flag::Zero);
     }
-    else if ((registers[DR] >> 15) == 1)
+    else if ((read_register(register_id) >> 15) == 1)
     {
         // Set the negative flag if the leftmost bit is 1
-        registers[Registers::R_COND] = ConditionFlags::FL_NEGATIVE;
+        set_condition_flag(flag::Negative);
     }
     else
     {
         // Set the positive flag if neither zero nor negative conditions are met
-        registers[Registers::R_COND] = ConditionFlags::FL_POSITIVE;
+        set_condition_flag(flag::Positive);
     }
 }
 
-
-/**
- * @brief Reads the contents of an image file and stores them in the memory array.
- *
- * This function reads the contents of the specified image file and stores them in the memory array
- * starting from the specified origin address. It also performs byte order conversion as necessary.
- *
- * @param file Pointer to the image file to be read.
- * @param alu Pointer to the ArithmeticLogicUnit object used for byte swapping.
- */
 void CPU::ReadImageFile(FILE* file, ArithmeticLogicUnit* alu)
 {
     // Declare a variable to store the origin, which indicates the starting address in memory to store the image
-    uint16_t origin;
+    std::uint16_t origin;
 
     // Read the origin value from the image file into the variable "origin"
     fread(&origin, sizeof(origin), 1, file);
@@ -97,13 +101,13 @@ void CPU::ReadImageFile(FILE* file, ArithmeticLogicUnit* alu)
     // The maximum file size is known, allowing for a single fread operation.
     // With the predetermined limit, the file size will not exceed this value.
     // Thus, a single file read operation is sufficient.
-    uint16_t maxRead = MEMORY_MAX - origin;
+    std::uint16_t maxRead = MEMORY_MAX - origin;
 
     // Pointer to the memory location to start reading from
-    uint16_t* p = memory + origin;
+    std::uint16_t* p = memory + origin;
 
     // Read the contents of the file into memory
-    size_t read = fread(p, sizeof(uint16_t), maxRead, file);
+    size_t read = fread(p, sizeof(std::uint16_t), maxRead, file);
 
     // Convert each read value to little endian format
     while (read-- > 0)
@@ -113,15 +117,6 @@ void CPU::ReadImageFile(FILE* file, ArithmeticLogicUnit* alu)
     }
 }
 
-
-/**
- * @brief Opens the specified image file and reads its contents into memory.
- *
- * This function opens the image file specified by the provided path and reads its contents into memory.
- *
- * @param imagePath The path to the image file to be read.
- * @return Returns 1 if the image file was successfully read into memory, 0 otherwise.
- */
 int CPU::ReadImage(const char* imagePath, ArithmeticLogicUnit* alu)
 {
     // Open the image file specified by the imagePath in binary read mode ("rb") and store the file pointer in "file"
