@@ -50,7 +50,7 @@ enum class Register : std::uint8_t
 enum class ImageError : std::uint8_t
 {
     FileNotFound,    ///< No file exists at the resolved image path.
-    FileNameInvalid, ///< The file is in invalid format, space included or empty 
+    FileNameInvalid, ///< The file is in invalid format, space included or empty
     CannotOpen,      ///< The file exists but could not be opened.
     InvalidImage,    ///< The file is too short or otherwise malformed.
 };
@@ -59,9 +59,9 @@ enum class ImageError : std::uint8_t
 /// time, reflecting whether the last result was positive, zero, or negative.
 namespace Flag
 {
-    inline constexpr Word16 Positive = 0b001;
-    inline constexpr Word16 Zero     = 0b010;
-    inline constexpr Word16 Negative = 0b100;
+    inline constexpr Word16 Positive = 0x0001;
+    inline constexpr Word16 Zero     = 0x0002;
+    inline constexpr Word16 Negative = 0x0004;
 }
 
 #endif // LC3_TYPES_H
