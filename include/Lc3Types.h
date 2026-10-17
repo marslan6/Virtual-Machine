@@ -18,23 +18,34 @@ namespace Lc3Cpu
     inline constexpr std::size_t kMemoryMax = std::size_t{1} << 16;
 
     /// Total number of registers (R0-R7, PC, COND).
-    inline constexpr Word16 kRegisterCount = 10;
+    inline constexpr Word16 kRegisterCount {10};
 
     /// Address the program counter starts at on reset.
-    inline constexpr Word16 kPcStart = 0x3000;
+    inline constexpr Word16 kPcStart {0x3000};
 
     /// Bit 15 is the sign bit of a 16-bit word; shift right by this to test it.
-    inline constexpr std::uint16_t kSignBitShift = 15;
+    inline constexpr std::uint16_t kSignBitShift {15};
 }
 
 /// Filesystem defaults for locating program image files.
 namespace Lc3CpuImage
 {
     /// Directory that program images are loaded from.
-    inline constexpr std::string_view kImageDir = "images";
+    inline constexpr std::string_view kImageDir {"images"};
 
     /// Default extension appended to an image name when none is given.
-    inline constexpr std::string_view kImageExt = ".obj";
+    inline constexpr std::string_view kImageExt {".obj"};
+}
+
+/// Addresses of the LC-3 memory-mapped device registers. Reads and writes to
+/// these addresses touch hardware (the keyboard), not ordinary memory.
+namespace Lc3MemoryIO
+{
+    /// Keyboard status: bit 15 is set when a key press is ready to be read.
+    inline constexpr Address kKeyboardStatusAddress {0xFE00};
+
+    /// Keyboard data: the ASCII value of the most recent key press.
+    inline constexpr Address kKeyboardDataAddress {0xFE02};
 }
 
 /// The LC-3 register file: eight general-purpose registers plus the
@@ -59,9 +70,9 @@ enum class ImageError : std::uint8_t
 /// time, reflecting whether the last result was positive, zero, or negative.
 namespace Flag
 {
-    inline constexpr Word16 Positive = 0x0001;
-    inline constexpr Word16 Zero     = 0x0002;
-    inline constexpr Word16 Negative = 0x0004;
+    inline constexpr Word16 Positive {0x0001};
+    inline constexpr Word16 Zero     {0x0002};
+    inline constexpr Word16 Negative {0x0004};
 }
 
 #endif // LC3_TYPES_H
