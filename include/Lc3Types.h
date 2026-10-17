@@ -46,6 +46,8 @@ namespace Lc3MemoryIO
 
     /// Keyboard data: the ASCII value of the most recent key press.
     inline constexpr Address kKeyboardDataAddress {0xFE02};
+
+    inline constexpr std::uint16_t kKeyboardReadyBit {15};
 }
 
 /// The LC-3 register file: eight general-purpose registers plus the
