@@ -3,33 +3,32 @@
 #include "./../include/OS.h"
 
 
-MemoryIO::MemoryIO(std::uint16_t* memory, OS* os)
+MemoryIO::MemoryIO(std::span<Word16> memory, OS* os) : memory(memory)
 {
-    memoryPtr = memory;
     osPtr = os;
 }
 
 
-std::uint16_t MemoryIO::Read(std::uint16_t memoryAddress)
+std::uint16_t MemoryIO::Read(const std::uint16_t memoryAddress)
 {
-    if (memoryAddress == MemoryMappedRegisters::MR_KBSR)
+    if (memoryAddress == Lc3MemoryIO::kKeyboardStatusAddress)
     {
-        if (osPtr->CheckKey())
+        if (osPtr->CheckKey() > 0)
         {
-            memoryPtr[MemoryMappedRegisters::MR_KBSR] = (1 << 15);
-            memoryPtr[MemoryMappedRegisters::MR_KBDR] = getchar();
+            memory[Lc3MemoryIO::kKeyboardStatusAddress] = (1 << 15);
+            memory[Lc3MemoryIO::kKeyboardDataAddress] = getchar();
         }
         else
         {
-            memoryPtr[MemoryMappedRegisters::MR_KBSR] = 0;
+            memory[Lc3MemoryIO::kKeyboardStatusAddress] = 0U;
         }
     }
 
-    return memoryPtr[memoryAddress];
+    return memory[memoryAddress];
 }
 
 
-void MemoryIO::Write(std::uint16_t address, std::uint16_t value)
+void MemoryIO::Write(const std::uint16_t address, const std::uint16_t value)
 {
-    memoryPtr[address] = value;
+    memory[address] = value;
 }
