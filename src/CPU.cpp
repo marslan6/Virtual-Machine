@@ -4,141 +4,196 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright � 2024 Mehmet Arslan
+Copyright (c) 2024 Mehmet Arslan
 */
 
-
-#define _CRT_SECURE_NO_DEPRECATE
-
-
-#include <iostream>
-
+#include <stdexcept>
+#include <utility>
+#include <filesystem>
+#include <fstream>
+#include <span>
+#include <bit>
 
 #include "./../include/Trap.h"
-#include "./../include/MemoryIO.h"
 #include "./../include/ArithmeticLogicUnit.h"
-#include "./../include/OS.h"
 #include "./../include/CPU.h"
 
+namespace fs = std::filesystem;
 
-/**
- * @brief Initializes the CPU object.
- *
- * This constructor initializes the CPU object by setting the default condition flag to zero
- * and setting the Program Counter (PC) to the starting position.
- */
+// ========================
+// ===== Construction =====
+// ========================
+/// Constructs the CPU in reset state: condition flag set to Zero and the
+/// program counter initialized to the LC-3 start address (kPcStart).
 CPU::CPU()
 {
-    // Set the default condition flag to zero
-    registers[Registers::R_COND] = ConditionFlags::FL_ZERO;
-
-    // Set the Program Counter (PC) to the starting position (default: 0x3000)
-    registers[Registers::R_PC] = PC::PC_START;
+    SetConditionFlag(Flag::Zero);
+    WriteRegister(Register::PC, Lc3Cpu::kPcStart);
 }
 
-
-/**
- * @brief Destroys the CPU object.
- *
- * This destructor does not perform any specific actions as the CPU object is being destroyed.
- */
-CPU::~CPU()
+// ========================
+// ===== Run state ========
+// ========================
+/// @return true while the CPU is running; false once Stop() has been called.
+bool CPU::IsRunning() const noexcept
 {
+    return running;
 }
 
-
-/**
- * @brief Updates the condition flags based on the value in the specified register.
- *
- * This function updates the condition flags based on the value stored in the specified destination register.
- *
- * @param DR The index of the destination register whose value is used to update the flags.
- */
-void CPU::UpdateFlags(uint16_t DR)
+/// Halts the CPU. After this call IsRunning() returns false.
+void CPU::Stop() noexcept
 {
-    if (registers[DR] == 0)
+    running = false;
+}
+
+// =============================
+// ===== Program execution =====
+// =============================
+
+/// Updates the condition (COND) register from the sign of a register's value,
+/// setting exactly one of Zero, Negative, or Positive.
+/// @param registerId Index of the register whose value is evaluated.
+/// @throws std::out_of_range if registerId is not a valid register index.
+void CPU::UpdateConditionFlags(std::uint16_t registerId)
+{
+    if (registerId >= Lc3Cpu::kRegisterCount)
     {
-        // Set the zero flag if the value in the register is zero
-        registers[Registers::R_COND] = ConditionFlags::FL_ZERO;
+        throw std::out_of_range("Register index out of range!");
     }
-    else if ((registers[DR] >> 15) == 1)
+
+    const Word16 registerValue = ReadRegister(registerId);
+    if (registerValue == 0U)
     {
-        // Set the negative flag if the leftmost bit is 1
-        registers[Registers::R_COND] = ConditionFlags::FL_NEGATIVE;
+        // Result is zero.
+        SetConditionFlag(Flag::Zero);
+    }
+    else if ((registerValue >> Lc3Cpu::kSignBitShift) == 1)
+    {
+        // Leftmost bit set => negative.
+        SetConditionFlag(Flag::Negative);
     }
     else
     {
-        // Set the positive flag if neither zero nor negative conditions are met
-        registers[Registers::R_COND] = ConditionFlags::FL_POSITIVE;
+        // Neither zero nor negative => positive.
+        SetConditionFlag(Flag::Positive);
     }
 }
 
-
-/**
- * @brief Reads the contents of an image file and stores them in the memory array.
- *
- * This function reads the contents of the specified image file and stores them in the memory array
- * starting from the specified origin address. It also performs byte order conversion as necessary.
- *
- * @param file Pointer to the image file to be read.
- * @param alu Pointer to the ArithmeticLogicUnit object used for byte swapping.
- */
-void CPU::ReadImageFile(FILE* file, ArithmeticLogicUnit* alu)
+/// Loads an LC-3 object image into memory. The file's first word is the
+/// big-endian load address; the remaining words are placed from there on and
+/// converted to host byte order.
+/// @param fileName Image name; kImageExt is appended if it has no extension.
+/// @return Nothing on success, or an ImageError describing the failure.
+std::expected<void, ImageError> CPU::LoadImage(const std::string& fileName)
 {
-    // Declare a variable to store the origin, which indicates the starting address in memory to store the image
-    uint16_t origin;
-
-    // Read the origin value from the image file into the variable "origin"
-    fread(&origin, sizeof(origin), 1, file);
-
-    // Convert origin to little endian format
-    origin = alu->Swap16(origin);
-
-    // The maximum file size is known, allowing for a single fread operation.
-    // With the predetermined limit, the file size will not exceed this value.
-    // Thus, a single file read operation is sufficient.
-    uint16_t maxRead = MEMORY_MAX - origin;
-
-    // Pointer to the memory location to start reading from
-    uint16_t* p = memory + origin;
-
-    // Read the contents of the file into memory
-    size_t read = fread(p, sizeof(uint16_t), maxRead, file);
-
-    // Convert each read value to little endian format
-    while (read-- > 0)
+    if (fileName.empty() || fileName.contains(" "))
     {
-        *p = alu->Swap16(*p);
-        ++p; // Move to the next memory location
+        return std::unexpected(ImageError::FileNameInvalid);
     }
-}
 
+    fs::path imagePath = fs::path(Lc3CpuImage::kImageDir) / fileName;
+    if (!imagePath.has_extension())
+    {
+        imagePath += Lc3CpuImage::kImageExt;
+    }
 
-/**
- * @brief Opens the specified image file and reads its contents into memory.
- *
- * This function opens the image file specified by the provided path and reads its contents into memory.
- *
- * @param imagePath The path to the image file to be read.
- * @return Returns 1 if the image file was successfully read into memory, 0 otherwise.
- */
-int CPU::ReadImage(const char* imagePath, ArithmeticLogicUnit* alu)
-{
-    // Open the image file specified by the imagePath in binary read mode ("rb") and store the file pointer in "file"
-    FILE* file = fopen(imagePath, "rb");
+    if (!fs::exists(imagePath))
+    {
+        return std::unexpected(ImageError::FileNotFound);
+    }
 
-    // Check if the file was successfully opened. If not, return 0 to indicate failure.
+    std::ifstream file(imagePath, std::ios::binary);
     if (!file)
     {
-        return 0;
+        return std::unexpected(ImageError::CannotOpen);
     }
 
-    // Call the ReadImageFile function to read the contents of the image file into memory
-    ReadImageFile(file, alu);
+    // First word is the load address (big-endian on disk).
+    Address programLoadAddress{};
+    if (!file.read(reinterpret_cast<char*>(&programLoadAddress), sizeof(programLoadAddress)))
+    {
+        return std::unexpected(ImageError::InvalidImage);
+    }
 
-    // Close the file stream to release resources
-    fclose(file);
+    programLoadAddress = FromBigEndianToHostEndian(programLoadAddress);
+    if (programLoadAddress >= memory.size())
+    {
+        return std::unexpected(ImageError::InvalidImage);
+    }
 
-    // Return 1 to indicate that the image file was successfully read into memory
-    return 1;
+    // The region of memory the binary loads into, from the load address on.
+    std::span<Word16> binaryLoadedRegion = std::span<Word16>{memory}.subspan(programLoadAddress);
+    file.read(reinterpret_cast<char*>(binaryLoadedRegion.data()), binaryLoadedRegion.size_bytes());
+    const auto wordsRead = static_cast<std::size_t>(file.gcount()) / sizeof(Word16);
+
+    for (Word16& word : binaryLoadedRegion.first(wordsRead))
+    {
+        word = FromBigEndianToHostEndian(word);
+    }
+
+    return {};
+}
+
+// ==========================
+// ===== Static helpers =====
+// ==========================
+
+/// Converts a word from big-endian (image byte order on disk) to the host's
+/// byte order. No-op when the host is already big-endian.
+/// @param value Word16 as read from the image, in big-endian order.
+/// @return The word in host byte order.
+Word16 CPU::FromBigEndianToHostEndian(Word16 value) noexcept
+{
+    if constexpr (std::endian::native == std::endian::little)
+    {
+        return std::byteswap(value);
+    }
+    return value;
+}
+
+// ===========================
+// ===== Register access =====
+// ===========================
+
+/// Reads a register by its typed identifier.
+/// @param registerId The register to read.
+/// @return The 16-bit value held in that register.
+Word16 CPU::ReadRegister(Register registerId) const
+{
+    return registers.at(std::to_underlying(registerId));
+}
+
+/// Reads a register by raw index, e.g. a register number decoded from an
+/// instruction. Validates the index at runtime.
+/// @param registerId Register index in the range [0, kRegisterCount).
+/// @return The 16-bit value held in that register.
+/// @throws std::out_of_range if registerId is not a valid register index.
+Word16 CPU::ReadRegister(std::uint16_t registerId) const
+{
+    if (registerId >= Lc3Cpu::kRegisterCount)
+    {
+        throw std::out_of_range("Register index out of range!");
+    }
+    return registers.at(registerId);
+}
+
+/// Writes a value into a register.
+/// @param registerId The register to write.
+/// @param value The 16-bit value to store.
+void CPU::WriteRegister(Register registerId, Word16 value)
+{
+    registers.at(std::to_underlying(registerId)) = value;
+}
+
+/// @return The current contents of the condition (COND) register.
+Word16 CPU::GetConditionFlag() const
+{
+    return ReadRegister(Register::COND);
+}
+
+/// Sets the condition (COND) register.
+/// @param value The condition-flag value to store (see namespace Flag).
+void CPU::SetConditionFlag(Word16 value)
+{
+    WriteRegister(Register::COND, value);
 }
