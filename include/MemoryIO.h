@@ -1,29 +1,22 @@
 #ifndef MEMORYIO_H
 #define MEMORYIO_H
 
-
 #include <cstdint>
+#include <span>
 
+#include "./../include/Lc3Types.h"
 
 class OS;
-
-
-enum MemoryMappedRegisters : std::uint16_t
-{
-	MR_KBSR = 0xFE00,
-	MR_KBDR = 0xFE02
-};
-
 
 class MemoryIO
 {
 private:
-	std::uint16_t* memoryPtr;
+	std::span<Word16> memory;
 	OS* osPtr;
 
 public:
-	MemoryIO(std::uint16_t* memory, OS* os);
-
+	MemoryIO(std::span<Word16> memory, OS* os);
+	~MemoryIO() = default;
 	std::uint16_t Read(std::uint16_t memoryAddress);
 	void Write(std::uint16_t address, std::uint16_t value);
 };
