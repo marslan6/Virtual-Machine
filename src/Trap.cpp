@@ -67,71 +67,76 @@ void Trap::Proxy(Word16 instruction)
     }
 }
 
+// ===== Helpers =====
+
+/// Returns a view of memory starting at the string address held in R0.
+/// @return Span from the R0 address to the end of memory.
+/// @throws std::out_of_range if the R0 address is outside the memory span.
+std::span<Word16> Trap::StringAtR0()
+{
+    const Address start = cpu->ReadRegister(Register::R0);
+    if (start >= memory.size())
+    {
+        throw std::out_of_range("Trap: string address out of range");
+    }
+    return memory.subspan(start);
+}
+
+/// Stores a just-read character in R0 and updates the condition flags.
+/// @param character The character value read from input.
+void Trap::StoreCharInR0(int character)
+{
+    cpu->WriteRegister(Register::R0, static_cast<Word16>(character));
+    cpu->UpdateConditionFlags(std::to_underlying(Register::R0));
+}
+
 // ===== Trap routines =====
 
 /// GETC: reads one character from the keyboard (not echoed) into R0.
 void Trap::GETC()
 {
-    const int character = std::cin.get();
-    cpu->WriteRegister(Register::R0, static_cast<Word16>(character));
-    cpu->UpdateConditionFlags(std::to_underlying(Register::R0));
+    StoreCharInR0(std::cin.get());
 }
 
 /// OUTC: writes the character in R0 to the console.
 void Trap::OUTC()
 {
-    std::cout.put(static_cast<char>(cpu->ReadRegister(Register::R0)));
-    std::cout.flush();
+    std::cout << static_cast<char>(cpu->ReadRegister(Register::R0)) << std::flush;
 }
 
 /// PUTS: writes a string stored one character per word, starting at the
 /// address in R0, until a zero word is reached.
 void Trap::PUTS()
 {
-    const Address start = cpu->ReadRegister(Register::R0);
-    if (start >= memory.size())
-    {
-        throw std::out_of_range("Trap::PUTS: string address out of range");
-    }
-
-    for (const Word16 word : memory.subspan(start))
+    for (const Word16 word : StringAtR0())
     {
         if (word == 0)
         {
             break;
         }
 
-        std::cout.put(static_cast<char>(word));
+        std::cout << static_cast<char>(word);
     }
 
-    std::cout.flush();
+    std::cout << std::flush;
 }
 
 /// INC: prompts for and reads one character (echoed) into R0.
 void Trap::INC()
 {
-    std::cout << "Enter a character: ";
-    std::cout.flush();
+    std::cout << "Enter a character: " << std::flush;
 
     const int character = std::cin.get();
-    std::cout.put(static_cast<char>(character));
-    std::cout.flush();
+    std::cout << static_cast<char>(character) << std::flush;
 
-    cpu->WriteRegister(Register::R0, static_cast<Word16>(character));
-    cpu->UpdateConditionFlags(std::to_underlying(Register::R0));
+    StoreCharInR0(character);
 }
 
 /// PUTSP: writes a string packed two characters per word (low byte first,
 /// then high byte), starting at the address in R0, until a zero word.
 void Trap::PUTSP()
 {
-    const Address start = cpu->ReadRegister(Register::R0);
-    if (start >= memory.size())
-    {
-        throw std::out_of_range("Trap::PUTSP: string address out of range");
-    }
-
-    for (const Word16 word : memory.subspan(start))
+    for (const Word16 word : StringAtR0())
     {
         if (word == 0)
         {
@@ -139,22 +144,21 @@ void Trap::PUTSP()
         }
 
         const char low = static_cast<char>(word & Lc3Trap::kLowByteMask);
-        std::cout.put(low);
+        std::cout << low;
 
         const char high = static_cast<char>(word >> Lc3Trap::kHighByteShift);
         if (high)
         {
-            std::cout.put(high);
+            std::cout << high;
         }
     }
 
-    std::cout.flush();
+    std::cout << std::flush;
 }
 
 /// HALT: prints a halt message and stops the CPU.
 void Trap::HALT()
 {
-    std::cout << "HALT\n";
-    std::cout.flush();
+    std::cout << "HALT\n" << std::flush;
     cpu->Stop();
 }

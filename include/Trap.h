@@ -27,6 +27,10 @@ public:
     void Proxy(Word16 instruction);
 
 private:
+    // ===== Helpers =====
+    [[nodiscard]] std::span<Word16> StringAtR0();
+    void StoreCharInR0(int character);
+
     // ===== Trap routines =====
     void GETC();
     void OUTC();
