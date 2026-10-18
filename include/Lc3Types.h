@@ -50,6 +50,27 @@ namespace Lc3MemoryIO
     inline constexpr std::uint16_t kKeyboardReadyBit {15};
 }
 
+/// Byte layout within a 16-bit word (e.g. two packed chars in PUTSP).
+namespace Lc3Trap
+{
+    /// Shift to reach the high byte of a 16-bit word.
+    inline constexpr std::uint16_t kHighByteShift = 8;
+
+    /// Mask isolating the low byte of a 16-bit word.
+    inline constexpr std::uint16_t kLowByteMask = 0x00FF;
+}
+
+/// LC-3 trap vectors: the service routines invoked by the TRAP instruction.
+enum class TrapVector : Word16
+{
+    GetChar     = 0x20,   ///< Read one char from keyboard, not echoed (GETC)
+    Out         = 0x21,   ///< Write one char to console (OUT)
+    PutString   = 0x22,   ///< Write a word-per-char string (PUTS)
+    In          = 0x23,   ///< Prompt and read one char, echoed (IN)
+    PutStringP  = 0x24,   ///< Write a two-chars-per-word string (PUTSP)
+    Halt        = 0x25,   ///< Halt the program (HALT)
+};
+
 /// The LC-3 register file: eight general-purpose registers plus the
 /// program counter and condition-flags register.
 enum class Register : std::uint8_t
