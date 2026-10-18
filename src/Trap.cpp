@@ -10,119 +10,90 @@ Copyright � 2024 Mehmet Arslan
 
 #include "./../include/Trap.h"
 #include "./../include/CPU.h"
+#include <print>
+#include <utility>
+#include <stdexcept>
 
 
-/**
- * @brief Constructs a Trap object with references to memory, registers, and CPU.
- *
- * This constructor initializes the Trap object with references to the memory, registers,
- * and CPU components of the virtual machine.
- *
- * @param memory Pointer to the memory array of the virtual machine.
- * @param registers Pointer to the registers array of the virtual machine.
- * @param cpu Pointer to the CPU object controlling the virtual machine's operation.
- */
-Trap::Trap(std::uint16_t* memory, std::uint16_t* registers, CPU* cpu)
+Trap::Trap(std::span<Word16> memory, CPU* cpu) 
+: memory(memory), cpu(cpu)
 {
-    memoryPtr = memory;
-    registersPtr = registers;
-    cpuPtr = cpu;
 }
 
 
-/**
- * @brief Executes 16 bits of instruction by handling different trap vectors.
- * This function processes trap instructions by switching based on the trap vector
- * and invoking corresponding trap handling functions.
- *
- * @param instruction The 16 bits of instruction to execute.
- */
-void Trap::Proxy(std::uint16_t instruction)
+void Trap::Proxy(Word16 instruction)
 {
     // Save the return address
-    registersPtr[Registers::R_7] = registersPtr[Registers::R_PC];
+    cpu->WriteRegister(Register::R7, cpu->ReadRegister(Register::PC));
 
     // Switch based on the trap vector
-    switch (instruction & 0x00FF)
+    switch (static_cast<TrapVector>(instruction & Lc3Trap::kLowByteMask))
     {
-    case TRAP_GETC:
+    case TrapVector::GetChar:
         GETC(); // Handle GETC trap
         break;
-    case TRAP_OUT:
-        OUTC(); // Handle OUTC trap
+    case TrapVector::Out:
+        OUT(); // Handle OUTC trap
         break;
-    case TRAP_PUTS:
+    case TrapVector::PutString:
         PUTS(); // Handle PUTS trap
         break;
-    case TRAP_IN:
-        INC(); // Handle INC trap
+    case TrapVector::In:
+        IN(); // Handle INC trap
         break;
-    case TRAP_PUTSP:
+    case TrapVector::PutStringP:
         PUTSP(); // Handle PUTSP trap
         break;
-    case TRAP_HALT:
+    case TrapVector::Halt:
         HALT(); // Handle HALT trap
         break;
+    default: // TODO:
+        throw std::runtime_error("Trap: unknown trap vector");
     }
 }
 
 
-/**
- * @brief Reads a character from the console and stores it in register R0.
- * This function prompts the user to enter a character from the console
- * and stores the ASCII value of the character in register R0.
- */
 void Trap::GETC()
 {
     // Read character from console
-    registersPtr[Registers::R_0] = (std::uint16_t)getchar();
+    cpu->WriteRegister(Register::R0, static_cast<Word16>(getchar()));
     // Update condition flags based on the result
-    cpuPtr->UpdateFlags(Registers::R_0);
+    cpu->UpdateConditionFlags(std::to_underlying(Register::R0));
 }
 
 
-/**
- * @brief Outputs a character stored in register R0 to the console.
- * This function outputs the character stored in register R0 to the console.
- */
-void Trap::OUTC()
+void Trap::OUT()
 {
     // Output character to console
-    putc((char)registersPtr[Registers::R_0], stdout);
+    putc(static_cast<char>(cpu->ReadRegister(Register::R0)), stdout);
     // Flush output buffer to ensure immediate display
     fflush(stdout);
 }
 
 
-/**
- * @brief Outputs a string stored in memory starting at the address in register R0 to the console.
- * This function outputs a null-terminated string stored in memory
- * starting at the address specified in register R0 to the console.
- */
 void Trap::PUTS()
 {
     // Iterate through memory and output characters until null terminator is encountered
-    std::uint16_t* c = memoryPtr + registersPtr[Registers::R_0];
-    while (*c)
+    std::span<Word16> memoryFromR0 = memory.subspan(cpu->ReadRegister(Register::R0));
+
+    for (const auto& word : memoryFromR0)
     {
-        // Output character to console
-        putc((char)*c, stdout);
-        // Move to the next character in memory
-        ++c;
+        if (word == 0)
+        {
+            break;
+        }
+
+        putc(static_cast<char>(word), stdout);
     }
+
     // Flush output buffer to ensure immediate display
     fflush(stdout);
 }
 
 
-/**
- * @brief Reads a character from the console and stores it in register R0.
- * This function prompts the user to enter a character from the console
- * and stores the ASCII value of the character in register R0.
- */
-void Trap::INC()
+void Trap::IN()
 {
-    printf("Enter a character: ");
+    std::println("Enter a character: ");
 
     // Read character from console
     char c = getchar();
@@ -131,33 +102,32 @@ void Trap::INC()
     // Flush output buffer to ensure immediate display
     fflush(stdout);
     // Store ASCII value of character in register R0
-    registersPtr[Registers::R_0] = (std::uint16_t)c;
+    cpu->WriteRegister(Register::R0, static_cast<Word16>(c));
     // Update condition flags based on the result
-    cpuPtr->UpdateFlags(Registers::R_0);
+    cpu->UpdateConditionFlags(std::to_underlying(Register::R0));
 }
 
 
-/**
- * @brief Outputs a string stored in memory starting at the address in register R0 to the console.
- * This function outputs a null-terminated string stored in memory
- * starting at the address specified in register R0 to the console.
- */
 void Trap::PUTSP()
 {
     // Iterate through memory and output characters until null terminator is encountered
-    std::uint16_t* c = memoryPtr + registersPtr[Registers::R_0];
-    while (*c)
+    std::span<Word16> memoryFromR0 = memory.subspan(cpu->ReadRegister(Register::R0));
+
+    for (const auto& word : memoryFromR0)
     {
-        // Extract lower 8 bits of the word
-        char char1 = (*c) & 0x00FF;
-        // Output lower byte to console
-        putc(char1, stdout);
-        // Extract upper 8 bits of the word
-        char char2 = (*c) >> 8;
-        // Output upper byte to console if not null
-        if (char2) putc(char2, stdout);
-        // Move to the next word in memory
-        ++c;
+        if (word == 0)
+        {
+            break;
+        }
+
+        char low = static_cast<char>(word & Lc3Trap::kLowByteMask);
+        putc(low, stdout);
+
+        char high =  static_cast<char>(word >> Lc3Trap::kHighByteShift);
+        if (high)
+        {
+            putc(high, stdout);
+        }
     }
 
     // Flush output buffer to ensure immediate display
@@ -165,16 +135,11 @@ void Trap::PUTSP()
 }
 
 
-/**
- * @brief Halts the execution of the virtual machine.
- * This function prints "HALT" to the console and sets the 'running' flag of the CPU object to false,
- * indicating that the virtual machine should stop execution.
- */
 void Trap::HALT()
 {
     puts("HALT");
     // Flush output buffer to ensure immediate display
     fflush(stdout);
     // Set 'running' flag to false to halt execution
-    cpuPtr->running = false;
+    cpu->Stop();
 }
