@@ -1,51 +1,33 @@
-/*
-Author: Mehmet Arslan
-GitHub: https://github.com/htmos6
-
-This code is licensed under the MIT License.
-
-Copyright � 2024 Mehmet Arslan
-*/
-
-
 #ifndef TRAP_H
 #define TRAP_H
 
-
-#include <cstdint>
-
+#include <span>
+#include "./../include/Lc3Types.h"
 
 class CPU;
 
-
-enum TrapCodes : std::uint16_t
-{
-    TRAP_GETC = 0x0020,  // get character from keyboard, not echoed onto the terminal
-    TRAP_OUT = 0x0021,   // output a character
-    TRAP_PUTS = 0x0022,  // output a word string
-    TRAP_IN = 0x0023,    // get character from keyboard, echoed onto the terminal
-    TRAP_PUTSP = 0x0024, // output a byte string
-    TRAP_HALT = 0x0025   // halt the program
-};
-
-
 class Trap
 {
-private:
-    std::uint16_t* memoryPtr;
-    std::uint16_t* registersPtr;
-    CPU* cpuPtr;
-
 public:
-    Trap(std::uint16_t* memory, std::uint16_t* registers, CPU* cpu);
+    // ===== Construction =====
+    Trap(std::span<Word16> memory, CPU* cpu);
+    ~Trap() = default;
 
-    void Proxy(std::uint16_t instruction);
+    // ===== Trap dispatch =====
+    void Dispatch(Word16 instruction);   // or Dispatch(TrapVector)
 
+private:
+    // ===== Trap handlers =====
     void GETC();
-    void OUTC();
+    void OUT();
     void PUTS();
-    void INC();
+    void IN();
     void PUTSP();
     void HALT();
+
+    // ===== State =====
+    std::span<Word16> memory;
+    CPU* cpu;
 };
+
 #endif
