@@ -1,7 +1,17 @@
+/*
+Author: Mehmet Arslan
+GitHub: https://github.com/htmos6
+
+This code is licensed under the MIT License.
+
+Copyright (c) 2024 Mehmet Arslan
+*/
+
 #ifndef TRAP_H
 #define TRAP_H
 
 #include <span>
+
 #include "./../include/Lc3Types.h"
 
 class CPU;
@@ -14,14 +24,14 @@ public:
     ~Trap() = default;
 
     // ===== Trap dispatch =====
-    void Dispatch(Word16 instruction);   // or Dispatch(TrapVector)
+    void Proxy(Word16 instruction);
 
 private:
-    // ===== Trap handlers =====
+    // ===== Trap routines =====
     void GETC();
-    void OUT();
+    void OUTC();
     void PUTS();
-    void IN();
+    void INC();
     void PUTSP();
     void HALT();
 
@@ -30,4 +40,4 @@ private:
     CPU* cpu;
 };
 
-#endif
+#endif // TRAP_H
