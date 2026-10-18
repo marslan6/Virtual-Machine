@@ -28,14 +28,14 @@ public:
     void UpdateConditionFlags(std::uint16_t registerId);
     std::expected<void, ImageError> LoadImage(const std::string& fileName);
 
-private:
-    // ===== Static helpers =====
-    [[nodiscard]] static Word16 FromBigEndianToHostEndian(Word16 value) noexcept;
-
     // ===== Register access =====
     [[nodiscard]] Word16 ReadRegister(Register registerId) const;
     [[nodiscard]] Word16 ReadRegister(std::uint16_t registerId) const;
     void WriteRegister(Register registerId, Word16 value);
+
+private:
+    // ===== Static helpers =====
+    [[nodiscard]] static Word16 FromBigEndianToHostEndian(Word16 value) noexcept;
     [[nodiscard]] Word16 GetConditionFlag() const;
     void SetConditionFlag(Word16 value);
 
