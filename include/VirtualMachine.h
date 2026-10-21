@@ -4,7 +4,7 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright © 2024 Mehmet Arslan
+Copyright ï¿½ 2024 Mehmet Arslan
 */
 
 
@@ -13,6 +13,7 @@ Copyright © 2024 Mehmet Arslan
 
 
 #include <cstdint>
+#include "./../include/Lc3Types.h"
 
 
 class CPU;
@@ -27,9 +28,9 @@ class VirtualMachine
 private:
 	CPU* cpuPtr;
 	OS* osPtr;
-	Trap* trapPtr;
+	Trap* trap;
 	MemoryIO* memoryIOPtr;
-	ArithmeticLogicUnit* aluPtr;
+	ArithmeticLogicUnit* alu;
 
 public:
 	VirtualMachine(CPU* cpu, OS* os, Trap* trap, MemoryIO* memoryIO, ArithmeticLogicUnit* alu);
