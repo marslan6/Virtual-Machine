@@ -13,63 +13,41 @@ Copyright � 2024 Mehmet Arslan
 
 
 #include <cstdint>
+#include <span>
 
+#include "./../include/Lc3Types.h"
 
 class MemoryIO;
 class CPU;
 
 
-enum Opcodes : std::uint16_t
-{
-    OP_BR = 0, // branch
-    OP_ADD,    // add 
-    OP_LD,     // load
-    OP_ST,     // store
-    OP_JSR,    // jump register
-    OP_AND,    // bitwise and
-    OP_LDR,    // load register
-    OP_STR,    // store register
-    OP_RTI,    // unused
-    OP_NOT,    // bitwise not
-    OP_LDI,    // load indirect
-    OP_STI,    // store indirect
-    OP_JMP,    // jump
-    OP_RES,    // reserved (unused)
-    OP_LEA,    // load effective address
-    OP_TRAP    // execute trap
-};
-
-
 class ArithmeticLogicUnit
 {
 private:
-    std::uint16_t* memoryPtr;
-    std::uint16_t* registersPtr;
-    MemoryIO* memoryIOPtr;
-    CPU* cpuPtr;
+    CPU* cpu;
+    MemoryIO* memoryIO;
 
 public:
-    ArithmeticLogicUnit(std::uint16_t* memory, std::uint16_t* registers, MemoryIO* memoryIO, CPU* cpu);
+    ArithmeticLogicUnit(MemoryIO* memoryIO, CPU* cpu);
 
-    std::uint16_t SignExtend(std::uint16_t immNumber, int immNumberLength) const;
-    std::uint16_t Swap16(std::uint16_t number);
+    [[nodiscard]] std::uint16_t SignExtend(std::uint16_t immNumber, int immNumberLength) const;
 
-    void ADD(std::uint16_t instruction);
-    void AND(std::uint16_t instruction);
-    void NOT(std::uint16_t instruction);
+    void ADD(Word16 instruction);
+    void AND(Word16 instruction);
+    void NOT(Word16 instruction);
 
-    void BR(std::uint16_t instruction);
-    void JMP(std::uint16_t instruction);
-    void JSR(std::uint16_t instruction);
+    void BR(Word16 instruction);
+    void JMP(Word16 instruction);
+    void JSR(Word16 instruction);
 
-    void LD(std::uint16_t instruction);
-    void LDR(std::uint16_t instruction);
-    void LEA(std::uint16_t instruction);
+    void LD(Word16 instruction);
+    void LDR(Word16 instruction);
+    void LEA(Word16 instruction);
 
-    void ST(std::uint16_t instruction);
-    void STI(std::uint16_t instruction);
-    void STR(std::uint16_t instruction);
+    void ST(Word16 instruction);
+    void STI(Word16 instruction);
+    void STR(Word16 instruction);
 
-    void LDI(std::uint16_t instruction);
+    void LDI(Word16 instruction);
 };
 #endif
