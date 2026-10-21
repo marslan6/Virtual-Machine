@@ -185,6 +185,19 @@ void CPU::WriteRegister(Register registerId, Word16 value)
     registers.at(std::to_underlying(registerId)) = value;
 }
 
+/// Writes a value into a register.
+/// @param registerId Register index in the range [0, kRegisterCount).
+/// @param value The 16-bit value to store.
+void CPU::WriteRegister(std::uint16_t registerId, Word16 value)
+{
+    if (registerId >= Lc3Cpu::kRegisterCount)
+    {
+        throw std::out_of_range("Register index out of range!");
+    }
+    
+    registers.at(registerId) = value;
+}
+
 /// @return The current contents of the condition (COND) register.
 Word16 CPU::GetConditionFlag() const
 {
