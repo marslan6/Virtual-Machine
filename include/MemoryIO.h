@@ -17,11 +17,13 @@ public:
     // ===== Memory access =====
     [[nodiscard]] Word16 Read(Address address);
     void Write(Address address, Word16 value);
+    [[nodiscard]] size_t GetMemorySize();
+    [[nodiscard]] std::span<Word16> ViewOfMemoryFrom(Address startAddress);
 
 private:
     // ===== State =====
     std::span<Word16> memory;
-    OS* osPtr;
+    OS* os;
 };
 
 #endif // MEMORYIO_H

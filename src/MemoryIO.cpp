@@ -14,7 +14,7 @@
 /// @param memory View of the machine's memory; must outlive this MemoryIO.
 /// @param os Non-owning pointer to the OS; must remain valid for reads.
 MemoryIO::MemoryIO(std::span<Word16> memory, OS* os)
-    : memory(memory), osPtr(os)
+    : memory(memory), os(os)
 {
 }
 
@@ -35,14 +35,14 @@ Word16 MemoryIO::Read(const Address address)
         throw std::out_of_range("MemoryIO::Read: address exceeds memory size");
     }
 
-    if (osPtr == nullptr)
+    if (os == nullptr)
     {
         throw std::runtime_error("MemoryIO::Read: OS pointer is null, keyboard polling unavailable");
     }
 
     if (address == Lc3MemoryIO::kKeyboardStatusAddress)
     {
-        if (osPtr->CheckKey())
+        if (os->CheckKey())
         {
             memory[Lc3MemoryIO::kKeyboardStatusAddress] = static_cast<Word16>(1U << Lc3MemoryIO::kKeyboardReadyBit);
             memory[Lc3MemoryIO::kKeyboardDataAddress] = static_cast<Word16>(getchar());
@@ -68,4 +68,24 @@ void MemoryIO::Write(const Address address, const Word16 value)
     }
 
     memory[address] = value;
+}
+
+/// @return The size of memory, in 16-bit words.
+std::size_t MemoryIO::GetMemorySize()
+{
+    return memory.size();
+}
+
+/// Returns a view of memory from the given address to the end.
+/// @param startAddress The first address the view covers.
+/// @return A span over memory starting at startAddress.
+/// @throws std::out_of_range if startAddress is outside the memory span.
+std::span<Word16> MemoryIO::ViewOfMemoryFrom(Address startAddress)
+{
+    if (startAddress >= GetMemorySize())
+    {
+        throw std::out_of_range("MemoryIO: start address out of range");
+    }
+
+    return memory.subspan(startAddress);
 }
