@@ -26,7 +26,7 @@ public:
 
     // ===== Program execution =====
     void UpdateConditionFlags(std::uint16_t registerId);
-    std::expected<void, ImageError> LoadImage(const std::string& fileName);
+    std::expected<bool, ImageError> LoadImage(const std::string& fileName);
 
     // ===== Register access =====
     [[nodiscard]] Word16 ReadRegister(Register registerId) const;

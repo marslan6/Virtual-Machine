@@ -84,7 +84,7 @@ void CPU::UpdateConditionFlags(std::uint16_t registerId)
 /// converted to host byte order.
 /// @param fileName Image name; kImageExt is appended if it has no extension.
 /// @return Nothing on success, or an ImageError describing the failure.
-std::expected<void, ImageError> CPU::LoadImage(const std::string& fileName)
+std::expected<bool, ImageError> CPU::LoadImage(const std::string& fileName)
 {
     if (fileName.empty() || fileName.contains(" "))
     {
@@ -131,7 +131,7 @@ std::expected<void, ImageError> CPU::LoadImage(const std::string& fileName)
         word = FromBigEndianToHostEndian(word);
     }
 
-    return {};
+    return true;
 }
 
 // ==========================
