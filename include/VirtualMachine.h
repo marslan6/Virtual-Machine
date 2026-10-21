@@ -26,10 +26,10 @@ class ArithmeticLogicUnit;
 class VirtualMachine
 {
 private:
-	CPU* cpuPtr;
-	OS* osPtr;
+	CPU* cpu;
+	OS* os;
 	Trap* trap;
-	MemoryIO* memoryIOPtr;
+	MemoryIO* memoryIO;
 	ArithmeticLogicUnit* alu;
 
 public:

@@ -8,6 +8,7 @@ Copyright � 2024 Mehmet Arslan
 */
 
 #include <cstdlib>
+#include <stdexcept>
 
 #include "./../include/VirtualMachine.h"
 #include "./../include/CPU.h"
@@ -19,11 +20,11 @@ Copyright � 2024 Mehmet Arslan
 
 VirtualMachine::VirtualMachine(CPU* cpu, OS* os, Trap* trap, MemoryIO* memoryIO, ArithmeticLogicUnit* alu)
 {
-    cpuPtr = cpu;
-    osPtr = os;
-    trapPtr = trap;
-    memoryIOPtr = memoryIO;
-    aluPtr = alu;
+    cpu = cpu;
+    os = os;
+    trap = trap;
+    memoryIO = memoryIO;
+    alu = alu;
 }
 
 
@@ -41,7 +42,7 @@ void VirtualMachine::RunVirtualMachine(int argc, const char* argv[])
     for (int j = 1; j < argc; ++j)
     {
         // Attempt to read the image file specified by the current command-line argument
-        if (!cpuPtr->ReadImage(argv[j], aluPtr))
+        if (!cpu->LoadImage(argv[j]))
         {
             // Print error message if image file cannot be loaded and exit with error code 1
             printf("failed to load image: %s\n", argv[j]);
@@ -53,69 +54,69 @@ void VirtualMachine::RunVirtualMachine(int argc, const char* argv[])
     signal(SIGINT, OS::HandleInterruptWrapper);
 
     // Disable input buffering to allow direct console input
-    osPtr->DisableInputBuffering();
+    os->DisableInputBuffering();
 
-    while (cpuPtr->running)
+    while (cpu->IsRunning())
     {
 
         // Fetch Instruction. Read the memory location pointed by program counter.
-        std::uint16_t instruction = memoryIOPtr->Read(cpuPtr->registers[Registers::R_PC]++);
+
+        cpu->WriteRegister(Register::PC, cpu->ReadRegister(Register::PC)+1);
+        std::uint16_t instruction = memoryIO->Read(cpu->ReadRegister(Register::PC));        
 
         // Extract the opcode from the instruction by considering bits [15:12]
-        std::uint16_t operation = (instruction >> 12);
+        auto opcode = static_cast<Opcode>(instruction >> 12);
 
-        switch (operation)
+        switch (opcode)
         {
-        case OP_ADD:
-            aluPtr->ADD(instruction);
-            break;
-            
-        case OP_AND:
-            aluPtr->AND(instruction);
-            break;
-        case OP_NOT:
-            aluPtr->NOT(instruction);
-            break;
-        case OP_BR:
-            aluPtr->BR(instruction);
-            break;
-        case OP_JMP:
-            aluPtr->JMP(instruction);
-            break;
-        case OP_JSR:
-            aluPtr->JSR(instruction);
-            break;
-        case OP_LD:
-            aluPtr->LD(instruction);
-            break;
-        case OP_LDI:
-            aluPtr->LDI(instruction);
-            break;
-        case OP_LDR:
-            aluPtr->LDR(instruction);
-            break;
-        case OP_LEA:
-            aluPtr->LEA(instruction);
-            break;
-        case OP_ST:
-            aluPtr->ST(instruction);
-            break;
-        case OP_STI:
-            aluPtr->STI(instruction);
-            break;
-        case OP_STR:
-            aluPtr->STR(instruction);
-            break;
-        case OP_TRAP:
-            trapPtr->Proxy(instruction);
-            break;
-        case OP_RES:
-        case OP_RTI:
-        default:
-            abort();
-            break;
+            case Opcode::ADD:  
+                alu->ADD(instruction);   
+                break;
+            case Opcode::AND:  
+                alu->AND(instruction);   
+                break;
+            case Opcode::NOT:  
+                alu->NOT(instruction);   
+                break;
+            case Opcode::BR:   
+                alu->BR(instruction);    
+                break;
+            case Opcode::JMP:  
+                alu->JMP(instruction);   
+                break;
+            case Opcode::JSR:  
+                alu->JSR(instruction);   
+                break;
+            case Opcode::LD:   
+                alu->LD(instruction);    
+                break;
+            case Opcode::LDR:  
+                alu->LDR(instruction);   
+                break;
+            case Opcode::LDI:  
+                alu->LDI(instruction);   
+                break;
+            case Opcode::LEA:  
+                alu->LEA(instruction);   
+                break;
+            case Opcode::ST:   
+                alu->ST(instruction);    
+                break;
+            case Opcode::STR:  
+                alu->STR(instruction);   
+                break;
+            case Opcode::STI:  
+                alu->STI(instruction);   
+                break;
+            case Opcode::TRAP: 
+                trap->Proxy(instruction); 
+                break;
+            case Opcode::RTI:
+            case Opcode::RES:
+            default:
+                throw std::runtime_error("illegal opcode");
         }
     }
 
-    osPtr->RestoreInputBuffering();
+    os->RestoreInputBuffering();
 }
