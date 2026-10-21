@@ -89,6 +89,28 @@ enum class ImageError : std::uint8_t
     InvalidImage,    ///< The file is too short or otherwise malformed.
 };
 
+/// LC-3 opcodes: the high 4 bits of an instruction. Values are fixed by the
+/// ISA (0-15) and must keep this order.
+enum class Opcode : Word16
+{
+    BR = 0,   ///< branch
+    ADD,      ///< add
+    LD,       ///< load
+    ST,       ///< store
+    JSR,      ///< jump to subroutine
+    AND,      ///< bitwise and
+    LDR,      ///< load register (base + offset)
+    STR,      ///< store register (base + offset)
+    RTI,      ///< return from interrupt (unused)
+    NOT,      ///< bitwise not
+    LDI,      ///< load indirect
+    STI,      ///< store indirect
+    JMP,      ///< jump
+    RES,      ///< reserved (unused)
+    LEA,      ///< load effective address
+    TRAP,     ///< execute trap
+};
+
 /// Condition flags written into the COND register. Exactly one is set at a
 /// time, reflecting whether the last result was positive, zero, or negative.
 namespace Flag
