@@ -32,6 +32,7 @@ public:
     [[nodiscard]] Word16 ReadRegister(Register registerId) const;
     [[nodiscard]] Word16 ReadRegister(std::uint16_t registerId) const;
     void WriteRegister(Register registerId, Word16 value);
+    void WriteRegister(std::uint16_t registerId, Word16 value);
 
 private:
     // ===== Static helpers =====
