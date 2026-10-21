@@ -16,12 +16,12 @@ Copyright (c) 2024 Mehmet Arslan
 
 // ===== Construction =====
 
-/// Constructs the trap handler over the machine's memory and the CPU whose
+/// Constructs the trap handler with the memory interface and the CPU whose
 /// registers the trap routines read and write.
-/// @param memory View of the machine's memory; must outlive this Trap.
+/// @param memoryIO Non-owning pointer to the memory interface; must outlive this Trap.
 /// @param cpu Non-owning pointer to the CPU; must remain valid for all traps.
-Trap::Trap(std::span<Word16> memory, CPU* cpu)
-    : memory(memory), cpu(cpu)
+Trap::Trap(MemoryIO* memoryIO, CPU* cpu)
+    : memoryIO(memoryIO), cpu(cpu)
 {
 }
 
@@ -72,14 +72,10 @@ void Trap::Proxy(Word16 instruction)
 /// Returns a view of memory starting at the string address held in R0.
 /// @return Span from the R0 address to the end of memory.
 /// @throws std::out_of_range if the R0 address is outside the memory span.
-std::span<Word16> Trap::StringAtR0() // TODO: Carry this to memoryio
+std::span<Word16> Trap::StringAtR0()
 {
     const Address start = cpu->ReadRegister(Register::R0);
-    if (start >= memory.size())
-    {
-        throw std::out_of_range("Trap: string address out of range");
-    }
-    return memory.subspan(start);
+    return memoryIO->ViewOfMemoryFrom(start);
 }
 
 /// Stores a just-read character in R0 and updates the condition flags.

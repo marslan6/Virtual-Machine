@@ -13,6 +13,7 @@ Copyright (c) 2024 Mehmet Arslan
 #include <span>
 
 #include "./../include/Lc3Types.h"
+#include "MemoryIO.h"
 
 class CPU;
 
@@ -20,7 +21,7 @@ class Trap
 {
 public:
     // ===== Construction =====
-    Trap(std::span<Word16> memory, CPU* cpu);
+    Trap(MemoryIO* memoryIO, CPU* cpu);
     ~Trap() = default;
 
     // ===== Trap dispatch =====
@@ -40,7 +41,7 @@ private:
     void HALT();
 
     // ===== State =====
-    std::span<Word16> memory;
+    MemoryIO* memoryIO;
     CPU* cpu;
 };
 
