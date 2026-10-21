@@ -20,10 +20,9 @@ int main(int argc, const char* argv[])
 {
     CPU cpu;
     OS os;
-    Trap trap(cpu.memory, cpu.registers, &cpu);
     MemoryIO memoryIO(cpu.memory, &os);
-    ArithmeticLogicUnit alu(cpu.memory, cpu.registers, &memoryIO, &cpu);
-
+    Trap trap(&memoryIO, &cpu);
+    ArithmeticLogicUnit alu(&memoryIO, &cpu);
     VirtualMachine virtualMachine(&cpu, &os, &trap, &memoryIO, &alu);
     virtualMachine.RunVirtualMachine(argc, argv);
 }
