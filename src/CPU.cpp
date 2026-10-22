@@ -20,9 +20,7 @@ Copyright (c) 2024 Mehmet Arslan
 
 namespace fs = std::filesystem;
 
-// ========================
 // ===== Construction =====
-// ========================
 
 /// Constructs the CPU in reset state: condition flag set to Zero and the
 /// program counter initialized to the LC-3 start address (kPcStart).
@@ -33,9 +31,7 @@ CPU::CPU(MemoryIO* memoryIO)
     WriteRegister(Register::PC, Lc3Cpu::kPcStart);
 }
 
-// ========================
-// ===== Run state ========
-// ========================
+// ===== Run state =====
 /// @return true while the CPU is running; false once Stop() has been called.
 bool CPU::IsRunning() const noexcept
 {
@@ -48,9 +44,7 @@ void CPU::Stop() noexcept
     running = false;
 }
 
-// =============================
 // ===== Program execution =====
-// =============================
 
 /// Updates the condition (COND) register from the sign of a register's value,
 /// setting exactly one of Zero, Negative, or Positive.
@@ -136,9 +130,7 @@ std::expected<bool, ImageError> CPU::LoadImage(const std::string& fileName)
     return true;
 }
 
-// ==========================
 // ===== Static helpers =====
-// ==========================
 
 /// Converts a word from big-endian (image byte order on disk) to the host's
 /// byte order. No-op when the host is already big-endian.
@@ -153,9 +145,7 @@ Word16 CPU::FromBigEndianToHostEndian(Word16 value) noexcept
     return value;
 }
 
-// ===========================
 // ===== Register access =====
-// ===========================
 
 /// Reads a register by its typed identifier.
 /// @param registerId The register to read.

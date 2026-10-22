@@ -35,7 +35,7 @@ Reference files that follow these rules:
 
 ## LC-3 types header (`Lc3Types.h`)
 - This header holds shared machine vocabulary used across classes:
-  type aliases (`Word`, `Address`), the register and error enums
+  type aliases (`Word16`, `Address`), the register and error enums
   (`Register`, `ImageError`), the condition-flag constants (`Flag`), and the
   grouped constant namespaces (`Lc3Cpu`, `Lc3CpuImage`).
 - Free namespace-scope types and constants defined HERE may carry `///` doc

@@ -5,9 +5,7 @@
 #include <stdexcept>
 #include <cstdio>
 
-// ========================
 // ===== Construction =====
-// ========================
 
 /// Constructs the memory interface over an existing memory span and a
 /// non-owning pointer to the OS used for keyboard polling.
@@ -17,9 +15,7 @@ MemoryIO::MemoryIO(OS* os)
 {
 }
 
-// ============================
-// ====== Memory access =======
-// ============================
+// ===== Memory access =====
 
 /// Reads a word from memory. Not const: reading the keyboard-status address
 /// polls the keyboard and updates the memory-mapped status/data registers.

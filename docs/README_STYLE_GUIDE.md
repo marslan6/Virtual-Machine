@@ -5,37 +5,38 @@ against the Google C++ style guide.
 
 ## Common commands
 
-Run all commands from the project root. Paths are relative to it, so adjust
-`./src` if your files live elsewhere (for example, add `./include` for headers).
+Run all commands from the project root. The linter script lives in `docs/`, and
+the code is split across `./src` (sources) and `./include` (headers), so both
+paths are passed.
 
 Check the whole project:
 
 ```bash
-python3 cpplint.py --recursive ./src
+python3 docs/cpplint.py --recursive ./src ./include
 ```
 
 Check specific files:
 
 ```bash
-python3 cpplint.py ./src/ThreadPool.hpp ./src/ThreadPool.cpp
+python3 docs/cpplint.py ./include/CPU.h ./src/CPU.cpp
 ```
 
 Show a summary of errors per category:
 
 ```bash
-python3 cpplint.py --recursive --counting=toplevel ./src
+python3 docs/cpplint.py --recursive --counting=toplevel ./src ./include
 ```
 
 Print nothing when there are no errors (useful in scripts and CI):
 
 ```bash
-python3 cpplint.py --recursive --quiet ./src
+python3 docs/cpplint.py --recursive --quiet ./src ./include
 ```
 
 List all available check categories:
 
 ```bash
-python3 cpplint.py --filter=
+python3 docs/cpplint.py --filter=
 ```
 
 ## Silencing warnings

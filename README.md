@@ -28,7 +28,7 @@ injection, and it leans on current standard-library facilities
 - [Usage](#usage)
 - [Technical Details](#technical-details)
 - [Included Programs](#included-programs)
-- [Modern C++ Features](#modern-c-features)
+- [**Used Modern C++ Features**](#modern-c-features)
 - [Tooling](#tooling)
 - [Documentation](#documentation)
 - [Author](#author)

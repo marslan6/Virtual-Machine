@@ -69,17 +69,21 @@ refers to them by full path, so no symlinks are needed.
 Everything goes through the `makefile` (run from the project root):
 
 ```sh
-make          # configure + build
-make run      # run the program
-make debug    # fresh configure + build with debug info (CMAKE_BUILD_TYPE=Debug)
-make rebuild  # clean rebuild
-make clean    # delete the build folder
+make           # configure + build
+make run       # run the program
+make run-2048  # run the built binary on images/2048.obj  (no rebuild)
+make run-rogue # run the built binary on images/rogue.obj (no rebuild)
+make debug     # fresh configure + build with debug info (CMAKE_BUILD_TYPE=Debug)
+make rebuild   # clean rebuild
+make clean     # delete the build folder
 ```
 
 | Target         | Action                                            |
 |----------------|---------------------------------------------------|
 | `make` / `make all` | Configure (if needed) and build              |
 | `make run`     | Run the built program                              |
+| `make run-2048` | Run the built binary on `images/2048.obj` (does not rebuild) |
+| `make run-rogue` | Run the built binary on `images/rogue.obj` (does not rebuild) |
 | `make debug`   | Fresh configure + build with `CMAKE_BUILD_TYPE=Debug` (debug symbols) |
 | `make rebuild` | Throw away cached config, reconfigure, rebuild     |
 | `make clean`   | Delete the whole build folder                      |
