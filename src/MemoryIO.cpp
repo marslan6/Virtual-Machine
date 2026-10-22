@@ -11,10 +11,9 @@
 
 /// Constructs the memory interface over an existing memory span and a
 /// non-owning pointer to the OS used for keyboard polling.
-/// @param memory View of the machine's memory; must outlive this MemoryIO.
 /// @param os Non-owning pointer to the OS; must remain valid for reads.
-MemoryIO::MemoryIO(std::span<Word16> memory, OS* os)
-    : memory(memory), os(os)
+MemoryIO::MemoryIO(OS* os)
+    : os(os)
 {
 }
 
@@ -53,7 +52,7 @@ Word16 MemoryIO::Read(const Address address)
         }
     }
 
-    return memory[address];
+    return memory.at(address);
 }
 
 /// Writes a word to memory.
@@ -67,7 +66,7 @@ void MemoryIO::Write(const Address address, const Word16 value)
         throw std::out_of_range("MemoryIO::Write: address exceeds memory size");
     }
 
-    memory[address] = value;
+    memory.at(address) = value;
 }
 
 /// @return The size of memory, in 16-bit words.
@@ -87,5 +86,5 @@ std::span<Word16> MemoryIO::ViewOfMemoryFrom(Address startAddress)
         throw std::out_of_range("MemoryIO: start address out of range");
     }
 
-    return memory.subspan(startAddress);
+    return std::span<Word16>{memory}.subspan(startAddress);
 }

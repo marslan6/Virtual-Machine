@@ -23,9 +23,11 @@ namespace fs = std::filesystem;
 // ========================
 // ===== Construction =====
 // ========================
+
 /// Constructs the CPU in reset state: condition flag set to Zero and the
 /// program counter initialized to the LC-3 start address (kPcStart).
-CPU::CPU()
+CPU::CPU(MemoryIO* memoryIO) 
+: memoryIO(memoryIO)
 {
     SetConditionFlag(Flag::Zero);
     WriteRegister(Register::PC, Lc3Cpu::kPcStart);
@@ -116,13 +118,13 @@ std::expected<bool, ImageError> CPU::LoadImage(const std::string& fileName)
     }
 
     programLoadAddress = FromBigEndianToHostEndian(programLoadAddress);
-    if (programLoadAddress >= memory.size())
+    if (programLoadAddress >= memoryIO->GetMemorySize())
     {
         return std::unexpected(ImageError::InvalidImage);
     }
 
     // The region of memory the binary loads into, from the load address on.
-    std::span<Word16> binaryLoadedRegion = std::span<Word16>{memory}.subspan(programLoadAddress);
+    std::span<Word16> binaryLoadedRegion = memoryIO->ViewOfMemoryFrom(programLoadAddress);
     file.read(reinterpret_cast<char*>(binaryLoadedRegion.data()), binaryLoadedRegion.size_bytes());
     const auto wordsRead = static_cast<std::size_t>(file.gcount()) / sizeof(Word16);
 

@@ -17,8 +17,9 @@ class CPU
 {
 public:
     // ===== Construction =====
-    CPU();
+    CPU(MemoryIO* memoryIO);
     ~CPU() = default;
+    friend class MemoryIO;
 
     // ===== Run state =====
     [[nodiscard]] bool IsRunning() const noexcept;
@@ -42,7 +43,7 @@ private:
 
     // ===== State =====
     std::array<Word16, Lc3Cpu::kRegisterCount> registers{};
-    std::array<Word16, Lc3Cpu::kMemoryMax>     memory{};
+    MemoryIO* memoryIO;
     bool running = true;
 };
 

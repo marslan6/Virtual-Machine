@@ -4,14 +4,16 @@
 #include <span>
 
 #include "./../include/Lc3Types.h"
+#include "CPU.h"
 
+class CPU;
 class OS;
 
 class MemoryIO
 {
 public:
     // ===== Construction =====
-    MemoryIO(std::span<Word16> memory, OS* os);
+    MemoryIO(OS* os);
     ~MemoryIO() = default;
 
     // ===== Memory access =====
@@ -22,7 +24,7 @@ public:
 
 private:
     // ===== State =====
-    std::span<Word16> memory;
+    std::array<Word16, Lc3Cpu::kMemoryMax> memory{};
     OS* os;
 };
 
