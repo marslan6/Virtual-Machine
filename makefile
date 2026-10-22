@@ -2,6 +2,8 @@
 # NOTE: the indented lines below MUST be real TAB characters, not spaces.
 
 # TODO: Configure below suitable with CMake
+# NOTE: the VM looks images up under its own kImageDir ("images") and appends
+# ".obj", so the run targets pass only the bare image name, not a path.
 BUILD_DIR := out
 TARGET    := executableBinary
 
@@ -20,6 +22,16 @@ clean:
 .PHONY: run
 run: # all
 	./$(BUILD_DIR)/$(TARGET)
+
+# Run the 2048 game. Build first with `make rebuild` if needed.
+.PHONY: run-2048
+run-2048:
+	./$(BUILD_DIR)/$(TARGET) 2048
+
+# Run the Rogue game. Build first with `make rebuild` if needed.
+.PHONY: run-rogue
+run-rogue:
+	./$(BUILD_DIR)/$(TARGET) rogue
 
 .PHONY: debug
 debug:
