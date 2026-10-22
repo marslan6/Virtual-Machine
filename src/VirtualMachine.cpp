@@ -4,11 +4,14 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright � 2024 Mehmet Arslan
+Copyright (c) 2024 Mehmet Arslan
 */
 
 #include <cstdlib>
 #include <stdexcept>
+#include <print>
+#include <span>
+#include <csignal>
 
 #include "./../include/VirtualMachine.h"
 #include "./../include/CPU.h"
@@ -17,99 +20,117 @@ Copyright � 2024 Mehmet Arslan
 #include "./../include/OS.h"
 #include "./../include/Trap.h"
 
-
-VirtualMachine::VirtualMachine(CPU* cpu, OS* os, Trap* trap, MemoryIO* memoryIO, ArithmeticLogicUnit* alu)
+namespace
 {
-    cpu = cpu;
-    os = os;
-    trap = trap;
-    memoryIO = memoryIO;
-    alu = alu;
+    /// RAII guard: disables console input buffering for its lifetime and
+    /// restores it on scope exit, including during exception unwinding.
+    class ScopedRawInput
+    {
+    public:
+        explicit ScopedRawInput(OS* os) : os(os) { os->DisableInputBuffering(); }
+        ~ScopedRawInput() { os->RestoreInputBuffering(); }
+
+        ScopedRawInput(const ScopedRawInput&) = delete;
+        ScopedRawInput& operator=(const ScopedRawInput&) = delete;
+
+    private:
+        OS* os;
+    };
 }
 
+// ===== Construction =====
 
-void VirtualMachine::RunVirtualMachine(int argc, const char* argv[])
+/// Constructs the virtual machine from its components (non-owning pointers).
+/// @param cpu Register file, program counter, and image loading.
+/// @param os Platform console setup and interrupt handling.
+/// @param trap Trap (service routine) handler.
+/// @param memoryIO Memory read/write interface.
+/// @param alu Arithmetic/logic and control instruction handlers.
+VirtualMachine::VirtualMachine(CPU* cpu, OS* os, Trap* trap, MemoryIO* memoryIO, ArithmeticLogicUnit* alu)
+    : cpu(cpu), os(os), trap(trap), memoryIO(memoryIO), alu(alu)
 {
-    // Check if at least one image file is provided as a command-line argument
-    if (argc < 2)
+}
+
+// ===== Execution =====
+
+/// Loads the program images named on the command line, then runs the
+/// fetch-decode-execute loop until the CPU halts.
+/// @param args Command-line arguments: program name followed by image files.
+/// @throws std::runtime_error if no image is given, an image fails to load,
+///         or an illegal opcode is encountered.
+void VirtualMachine::RunVirtualMachine(std::span<char* const> args)
+{
+    if (args.size() < 2)
     {
-        // Display usage information and exit if no image files are provided
-        printf("lc3 [image-file1] ...\n");
-        exit(2);
+        throw std::runtime_error("no image file provided");
     }
 
-    // Iterate over command-line arguments (excluding the program name)
-    for (int j = 1; j < argc; ++j)
+    // args[0] is the program name; the rest are image files.
+    for (const char* imagePath : args.subspan(1))
     {
-        // Attempt to read the image file specified by the current command-line argument
-        if (!cpu->LoadImage(argv[j]))
+        if (!cpu->LoadImage(imagePath))
         {
-            // Print error message if image file cannot be loaded and exit with error code 1
-            printf("failed to load image: %s\n", argv[j]);
-            exit(1);
+            throw std::runtime_error("failed to load image file");
         }
     }
 
-    // Set up a signal handler for interrupt signal (Ctrl+C)
-    signal(SIGINT, OS::HandleInterruptWrapper);
+    std::signal(SIGINT, OS::HandleInterruptWrapper);
 
-    // Disable input buffering to allow direct console input
-    os->DisableInputBuffering();
+    // Raw input stays enabled for the whole run and is restored on any exit.
+    ScopedRawInput rawInput(os);
 
     while (cpu->IsRunning())
     {
+        // Fetch: read the instruction at PC, then advance PC to the next word.
+        Word16 instruction = memoryIO->Read(cpu->ReadRegister(Register::PC));
+        cpu->WriteRegister(Register::PC, cpu->ReadRegister(Register::PC) + 1);
 
-        // Fetch Instruction. Read the memory location pointed by program counter.
-
-        cpu->WriteRegister(Register::PC, cpu->ReadRegister(Register::PC)+1);
-        std::uint16_t instruction = memoryIO->Read(cpu->ReadRegister(Register::PC));        
-
-        // Extract the opcode from the instruction by considering bits [15:12]
+        // Decode: the opcode is bits [15:12].
         auto opcode = static_cast<Opcode>(instruction >> 12);
 
         switch (opcode)
         {
-            case Opcode::ADD:  
-                alu->ADD(instruction);   
+            case Opcode::ADD:
+                alu->ADD(instruction);
                 break;
-            case Opcode::AND:  
-                alu->AND(instruction);   
+            case Opcode::AND:
+                alu->AND(instruction);
                 break;
-            case Opcode::NOT:  
-                alu->NOT(instruction);   
+            case Opcode::NOT:
+                alu->NOT(instruction);
                 break;
-            case Opcode::BR:   
-                alu->BR(instruction);    
+            case Opcode::BR:
+                alu->BR(instruction);
                 break;
-            case Opcode::JMP:  
-                alu->JMP(instruction);   
+            case Opcode::JMP:
+                alu->JMP(instruction);
                 break;
-            case Opcode::JSR:  
-                alu->JSR(instruction);   
+            case Opcode::JSR:
+                alu->JSR(instruction);
                 break;
-            case Opcode::LD:   
-                alu->LD(instruction);    
+            case Opcode::LD:
+                alu->LD(instruction);
                 break;
-            case Opcode::LDR:  
-                alu->LDR(instruction);   
+            case Opcode::LDR:
+                alu->LDR(instruction);
                 break;
-            case Opcode::LDI:  
-                alu->LDI(instruction);   
+            case Opcode::LDI:
+                alu->LDI(instruction);
                 break;
-            case Opcode::LEA:  
-                alu->LEA(instruction);   
+            case Opcode::LEA:
+                alu->LEA(instruction);
                 break;
-            case Opcode::ST:   
-                alu->ST(instruction);    
+            case Opcode::ST:
+                alu->ST(instruction);
                 break;
-            case Opcode::STR:  
-                alu->STR(instruction);   
+            case Opcode::STR:
+                alu->STR(instruction);
                 break;
-            case Opcode::STI:  
-                alu->STI(instruction);   
+            case Opcode::STI:
+                alu->STI(instruction);
                 break;
-            case Opcode::TRAP: 
-                trap->Proxy(instruction); 
+            case Opcode::TRAP:
+                trap->Proxy(instruction);
                 break;
             case Opcode::RTI:
             case Opcode::RES:
@@ -117,6 +138,4 @@ void VirtualMachine::RunVirtualMachine(int argc, const char* argv[])
                 throw std::runtime_error("illegal opcode");
         }
     }
-
-    os->RestoreInputBuffering();
 }

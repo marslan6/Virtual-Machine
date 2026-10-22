@@ -4,17 +4,13 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright � 2024 Mehmet Arslan
+Copyright (c) 2024 Mehmet Arslan
 */
-
 
 #ifndef VIRTUAL_MACHINE_H
 #define VIRTUAL_MACHINE_H
 
-
-#include <cstdint>
-#include "./../include/Lc3Types.h"
-
+#include <span>
 
 class CPU;
 class OS;
@@ -22,18 +18,22 @@ class Trap;
 class MemoryIO;
 class ArithmeticLogicUnit;
 
-
 class VirtualMachine
 {
-private:
-	CPU* cpu;
-	OS* os;
-	Trap* trap;
-	MemoryIO* memoryIO;
-	ArithmeticLogicUnit* alu;
-
 public:
-	VirtualMachine(CPU* cpu, OS* os, Trap* trap, MemoryIO* memoryIO, ArithmeticLogicUnit* alu);
-	void RunVirtualMachine(int argc, const char* argv[]);
+    // ===== Construction =====
+    VirtualMachine(CPU* cpu, OS* os, Trap* trap, MemoryIO* memoryIO, ArithmeticLogicUnit* alu);
+
+    // ===== Execution =====
+    void RunVirtualMachine(std::span<char* const> args);
+
+private:
+    // ===== State =====
+    CPU* cpu;
+    OS* os;
+    Trap* trap;
+    MemoryIO* memoryIO;
+    ArithmeticLogicUnit* alu;
 };
-#endif
+
+#endif // VIRTUAL_MACHINE_H
