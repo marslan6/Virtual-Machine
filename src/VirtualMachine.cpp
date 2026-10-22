@@ -7,9 +7,7 @@ This code is licensed under the MIT License.
 Copyright (c) 2024 Mehmet Arslan
 */
 
-#include <cstdlib>
 #include <stdexcept>
-#include <print>
 #include <span>
 #include <csignal>
 
@@ -54,7 +52,7 @@ VirtualMachine::VirtualMachine(CPU* cpu, OS* os, Trap* trap, MemoryIO* memoryIO,
 // ===== Execution =====
 
 /// Loads the program images named on the command line, then runs the
-/// fetch-decode-execute loop until the CPU halts.
+/// fetch-decode-execute loop until the CPU halts or an interrupt is requested.
 /// @param args Command-line arguments: program name followed by image files.
 /// @throws std::runtime_error if no image is given, an image fails to load,
 ///         or an illegal opcode is encountered.
@@ -74,12 +72,13 @@ void VirtualMachine::RunVirtualMachine(std::span<char* const> args)
         }
     }
 
-    std::signal(SIGINT, OS::HandleInterruptWrapper);
+    // One-time, single-threaded handler install.
+    std::signal(SIGINT, OS::HandleInterruptWrapper);  // NOLINT(concurrency-mt-unsafe)
 
     // Raw input stays enabled for the whole run and is restored on any exit.
     ScopedRawInput rawInput(os);
 
-    while (cpu->IsRunning())
+    while (cpu->IsRunning() && !OS::InterruptRequested())
     {
         // Fetch: read the instruction at PC, then advance PC to the next word.
         Word16 instruction = memoryIO->Read(cpu->ReadRegister(Register::PC));

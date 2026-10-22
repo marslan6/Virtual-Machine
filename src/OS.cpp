@@ -4,50 +4,43 @@ GitHub: https://github.com/htmos6
 
 This code is licensed under the MIT License.
 
-Copyright � 2024 Mehmet Arslan
+Copyright (c) 2024 Mehmet Arslan
 */
-
 
 #include "./../include/OS.h"
 
-#include <cstdio>
-
 #if defined(_WIN32)
-    #include <Windows.h>
-    #include <conio.h>  // _kbhit
+#include <windows.h>
+#include <conio.h>       // _kbhit
 #elif defined(__linux__)
-    #include <termios.h>     // termios, tcgetattr, tcsetattr, tcflush
-    #include <unistd.h>      // STDIN_FILENO
-    #include <sys/select.h>  // select, fd_set
-    #include <cstdlib>       // exit
-#else
-    #error "Unsupported Operating System!"
+#include <termios.h>     // termios, tcgetattr, tcsetattr, tcflush
+#include <unistd.h>      // STDIN_FILENO
+#include <sys/select.h>  // select, fd_set
 #endif
 
+// ===== Static members =====
 
-OS::OS()
-{
+volatile std::sig_atomic_t OS::interruptRequested = 0;
 
-}
+// ===== Console input mode =====
 
-
-void OS::DisableInputBuffering()
+/// Switches the console to unbuffered, no-echo input so reads return a single
+/// keypress immediately. Saves the previous mode for RestoreInputBuffering.
+void OS::DisableInputBuffering() noexcept
 {
 #if defined(_WIN32)
     hStdin = GetStdHandle(STD_INPUT_HANDLE);
     GetConsoleMode(hStdin, &fdwOldMode);
 
-    // Disable ECHO (characters echoed back to screen) and LINE_INPUT
-    // (so reads return immediately instead of waiting for Enter).
-    fdwMode = fdwOldMode ^ ENABLE_ECHO_INPUT ^ ENABLE_LINE_INPUT;
+    // Clear echo and line-input so reads return immediately.
+    fdwMode = fdwOldMode & ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT);
 
     SetConsoleMode(hStdin, fdwMode);
     FlushConsoleInputBuffer(hStdin);
 #elif defined(__linux__)
     tcgetattr(hStdin, &fdwOldMode);
 
-    // Clear ICANON (canonical/line-buffered mode) and ECHO so reads return
-    // immediately and typed characters are not echoed back to the screen.
+    // Clear ICANON and ECHO so reads return immediately and are not echoed.
     fdwMode = fdwOldMode;
     fdwMode.c_lflag &= ~(ICANON | ECHO);
 
@@ -56,47 +49,45 @@ void OS::DisableInputBuffering()
 #endif
 }
 
-
-void OS::RestoreInputBuffering()
+/// Restores the console input mode saved by DisableInputBuffering.
+void OS::RestoreInputBuffering() noexcept
 {
 #if defined(_WIN32)
-    SetConsoleMode(this->hStdin, fdwOldMode);
+    SetConsoleMode(hStdin, fdwOldMode);
 #elif defined(__linux__)
-    tcsetattr(this->hStdin, TCSANOW, &this->fdwOldMode);
+    tcsetattr(hStdin, TCSANOW, &fdwOldMode);
 #endif
 }
 
-
-std::uint16_t OS::CheckKey()
+/// Polls, without blocking, whether a key press is available.
+/// @return true if a key is ready to read.
+bool OS::CheckKey() noexcept
 {
 #if defined(_WIN32)
-    return WaitForSingleObject(hStdin, 1000) == WAIT_OBJECT_0 && _kbhit();
+    return (WaitForSingleObject(hStdin, 0) == WAIT_OBJECT_0) && _kbhit();
 #elif defined(__linux__)
     fd_set readfds;
     FD_ZERO(&readfds);
     FD_SET(hStdin, &readfds);
 
-    // Wait up to 1 second, mirroring the WaitForSingleObject timeout on Windows.
-    struct timeval timeout = {};
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
-
-    return static_cast<std::uint16_t>(select(hStdin + 1, &readfds, nullptr, nullptr, &timeout) > 0);
+    timeval timeout{};  // zero timeout: poll, do not block
+    return select(hStdin + 1, &readfds, nullptr, nullptr, &timeout) > 0;
 #endif
 }
 
+// ===== Interrupt handling =====
 
-void OS::HandleInterrupt(int signal)
+/// @return true once an interrupt (Ctrl+C) has been requested.
+bool OS::InterruptRequested() noexcept
 {
-    (void)signal; // Required by the signal-handler signature but unused here
-    RestoreInputBuffering();
-    printf("\n");
-    exit(-2);
+    return interruptRequested != 0;
 }
 
-
-void OS::HandleInterruptWrapper(int signal)
+/// Signal handler for interrupts (Ctrl+C). Only records the request by setting
+/// a flag, which is the one action safe to perform inside a signal handler; the
+/// main loop observes the flag and shuts down through normal control flow.
+/// @param signalNumber The delivered signal number (unused).
+void OS::HandleInterruptWrapper([[maybe_unused]] int signalNumber) noexcept
 {
-    OS osWrapper;
-    osWrapper.HandleInterrupt(signal);
+    interruptRequested = 1;
 }
