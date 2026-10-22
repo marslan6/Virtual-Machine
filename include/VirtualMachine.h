@@ -25,7 +25,7 @@ public:
     VirtualMachine(CPU* cpu, OS* os, Trap* trap, MemoryIO* memoryIO, ArithmeticLogicUnit* alu);
 
     // ===== Execution =====
-    void RunVirtualMachine(std::span<char* const> args);
+    void RunVirtualMachine(std::span<const char*> args);
 
 private:
     // ===== State =====

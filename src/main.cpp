@@ -7,8 +7,6 @@ This code is licensed under the MIT License.
 Copyright � 2024 Mehmet Arslan
 */
 
-
-#include <iostream>
 #include "./../include/CPU.h"
 #include "./../include/ArithmeticLogicUnit.h"
 #include "./../include/MemoryIO.h"
@@ -16,17 +14,20 @@ Copyright � 2024 Mehmet Arslan
 #include "./../include/Trap.h"
 #include "./../include/VirtualMachine.h"
 
+#include <span>
+
 int main(int argc, const char* argv[])
 {
-    CPU cpu;
-    OS os;
-    MemoryIO memoryIO(cpu.memory, &os);
+    OS os{};
+    MemoryIO memoryIO(&os);
+    CPU cpu(&memoryIO);
     Trap trap(&memoryIO, &cpu);
     ArithmeticLogicUnit alu(&memoryIO, &cpu);
     VirtualMachine virtualMachine(&cpu, &os, &trap, &memoryIO, &alu);
-    virtualMachine.RunVirtualMachine(argc, argv);
-}
 
+    virtualMachine.RunVirtualMachine(std::span<const char*>(argv, static_cast<std::size_t>(argc)));
+    return 0;
+}
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
 // Debug program: F5 or Debug > Start Debugging menu

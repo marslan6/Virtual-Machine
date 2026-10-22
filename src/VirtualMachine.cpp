@@ -56,7 +56,7 @@ VirtualMachine::VirtualMachine(CPU* cpu, OS* os, Trap* trap, MemoryIO* memoryIO,
 /// @param args Command-line arguments: program name followed by image files.
 /// @throws std::runtime_error if no image is given, an image fails to load,
 ///         or an illegal opcode is encountered.
-void VirtualMachine::RunVirtualMachine(std::span<char* const> args)
+void VirtualMachine::RunVirtualMachine(std::span<const char*> args)
 {
     if (args.size() < 2)
     {
