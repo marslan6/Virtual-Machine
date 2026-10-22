@@ -1,529 +1,169 @@
-# Build Instructions - LC-3 Virtual Machine
+# Build Instructions — LC-3 Virtual Machine
 
-This document provides detailed instructions for building and running the LC-3 Virtual Machine emulator across different development environments.
+How to build and run the emulator. The build is driven by **CMake** (≥ 3.20)
+with **GCC 15** targeting **C++23**, and works on **Linux and Windows**.
+
+For the full toolchain setup, editor/clang-tidy integration, and a CMake
+directive reference, see [README_CMAKE.md](README_CMAKE.md). This document is
+the quick, task-focused version.
 
 ## Table of Contents
 1. [Prerequisites](#prerequisites)
-2. [Building with Visual Studio](#building-with-visual-studio)
-3. [Building with Command Line](#building-with-command-line)
-4. [Project Configuration](#project-configuration)
-5. [Running the VM](#running-the-vm)
-6. [Troubleshooting](#troubleshooting)
+2. [Building](#building)
+3. [Running the VM](#running-the-vm)
+4. [Debug builds](#debug-builds)
+5. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Prerequisites
 
-### Software Requirements
+| Requirement | Notes |
+|-------------|-------|
+| **OS** | Linux or Windows (the platform layer lives in `OS` and is selected at compile time) |
+| **Compiler** | GCC 15 (`gcc-15` / `g++-15`) — the standard is set to C++23 and is **required** |
+| **Build system** | CMake ≥ 3.20 (first version aware of C++23) |
+| **Standard library** | a libstdc++ providing `<expected>`, `<span>`, `<bit>` |
+| **Debugger** (optional) | gdb |
 
-**Operating System:**
-- Windows 7, 8, 10, or 11 (64-bit or 32-bit)
-- Uses Windows-specific APIs (Windows.h, console manipulation)
+The C++23 features the code depends on include `std::expected`, `std::span`,
+`std::byteswap`, `std::endian`, and `std::to_underlying`. A compiler older than
+GCC 15 will not build it.
 
-**Compiler Options:**
+> On Ubuntu, GCC 15 comes from the toolchain PPA
+> (`ppa:ubuntu-toolchain-r/test`). The exact `apt` steps are in
+> [README_CMAKE.md](README_CMAKE.md#prerequisites).
 
-#### Option 1: Microsoft Visual Studio (Recommended)
-- **Version**: Visual Studio 2017 or later
-- **Edition**: Community (free), Professional, or Enterprise
-- **Workload**: Desktop development with C++
-- **Download**: https://visualstudio.microsoft.com/downloads/
-
-#### Option 2: Visual Studio Build Tools
-- Standalone compiler without IDE
-- Download: https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio
-
-#### Option 3: MinGW-w64 (GCC for Windows)
-- Free and open-source
-- Download: https://www.mingw-w64.org/downloads/
-- Or via MSYS2: https://www.msys2.org/
-
-### C++ Standard Requirements
-- **Minimum**: C++11
-- **Recommended**: C++14 or later
-- Features used:
-  - `std::uint16_t`, `std::uint32_t` (from `<cstdint>`)
-  - Lambda expressions (if extended)
-  - Range-based for loops (potential)
+The CMake toolchain is pinned to `gcc-15` / `g++-15` in
+[CMakeLists.txt](../CMakeLists.txt). To use a different compiler, change
+`CMAKE_C_COMPILER` / `CMAKE_CXX_COMPILER` there, or pass
+`-DCMAKE_CXX_COMPILER=...` at configure time.
 
 ---
 
-## Building with Visual Studio
+## Building
 
-### Step 1: Open the Solution
-
-1. **Launch Visual Studio**
-2. **Open Solution File**:
-   - File → Open → Project/Solution
-   - Navigate to: `visual-studio/Virtual-Machine.sln`
-   - Click Open
-
-### Step 2: Update Project Paths
-
-Since files have been reorganized, you'll need to update the project configuration:
-
-#### Update Source Files
-
-1. **Remove old file references**:
-   - Right-click on each `.cpp`/`.h` file in Solution Explorer
-   - Select Remove (DO NOT delete from disk)
-
-2. **Add new file references**:
-   - Right-click on project → Add → Existing Item
-   - Navigate to `../src/` directory
-   - Select all `.cpp` and `.h` files:
-     - `main.cpp`
-     - `VirtualMachine.cpp` / `VirtualMachine.h`
-     - `CPU.cpp` / `CPU.h`
-     - `ArithmeticLogicUnit.cpp` / `ArithmeticLogicUnit.h`
-     - `MemoryIO.cpp` / `MemoryIO.h`
-     - `Trap.cpp` / `Trap.h`
-     - `OS.cpp` / `OS.h`
-   - Click Add
-
-#### Configure Include Directories
-
-1. **Right-click project** → Properties
-2. **Configuration**: All Configurations
-3. **Platform**: All Platforms
-4. Navigate to: **C/C++** → **General**
-5. **Additional Include Directories**: Add `$(ProjectDir)\..\src`
-6. Click OK
-
-#### Configure Output Directory
-
-1. **Right-click project** → Properties
-2. Navigate to: **General**
-3. **Output Directory**: `$(SolutionDir)\..\build\`
-4. **Intermediate Directory**: `$(SolutionDir)\..\build\intermediate\$(Configuration)\`
-5. Click Apply → OK
-
-### Step 3: Build Configuration
-
-#### Debug Configuration
-- **Optimization**: Disabled (/Od)
-- **Debug Information**: Full (/Zi)
-- **Runtime Library**: Multi-threaded Debug DLL (/MDd)
-
-#### Release Configuration
-- **Optimization**: Maximize Speed (/O2)
-- **Inline Function Expansion**: Any Suitable (/Ob2)
-- **Runtime Library**: Multi-threaded DLL (/MD)
-- **Whole Program Optimization**: Yes
-
-### Step 4: Build the Project
-
-1. **Select Configuration**:
-   - Debug (for development)
-   - Release (for distribution)
-
-2. **Build**:
-   - Build → Build Solution (Ctrl+Shift+B)
-   - Or right-click project → Build
-
-3. **Check Output**:
-   ```
-   1>------ Build started: Project: Virtual-Machine ------
-   1>main.cpp
-   1>VirtualMachine.cpp
-   1>CPU.cpp
-   1>ArithmeticLogicUnit.cpp
-   1>MemoryIO.cpp
-   1>Trap.cpp
-   1>OS.cpp
-   1>Generating Code...
-   1>Virtual-Machine.vcxproj -> C:\...\build\Virtual-Machine.exe
-   ========== Build: 1 succeeded, 0 failed ==========
-   ```
-
-4. **Verify Output**:
-   - Executable location: `build/Virtual-Machine.exe`
-   - Size: ~50-100 KB (depends on configuration)
-
----
-
-## Building with Command Line
-
-### Option 1: MSVC Command Line
-
-#### Setup MSVC Environment
-
-**Option A: Visual Studio Developer Command Prompt**
-1. Start → Visual Studio 2022 → Developer Command Prompt for VS 2022
-2. Navigate to project root: `cd C:\path\to\Virtual-Machine`
-
-**Option B: Manual Setup**
-```cmd
-"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
-```
-
-#### Compile and Link
-
-```cmd
-# Navigate to project root
-cd C:\path\to\Virtual-Machine
-
-# Create build directory
-mkdir build
-
-# Compile all source files
-cl /EHsc /std:c++14 /O2 /W3 /I src ^
-   src\main.cpp ^
-   src\VirtualMachine.cpp ^
-   src\CPU.cpp ^
-   src\ArithmeticLogicUnit.cpp ^
-   src\MemoryIO.cpp ^
-   src\Trap.cpp ^
-   src\OS.cpp ^
-   /Fe:build\vm.exe
-
-# Expected output:
-# Microsoft (R) C/C++ Optimizing Compiler ...
-# main.cpp
-# VirtualMachine.cpp
-# CPU.cpp
-# ArithmeticLogicUnit.cpp
-# MemoryIO.cpp
-# Trap.cpp
-# OS.cpp
-# Generating Code...
-# Microsoft (R) Incremental Linker ...
-```
-
-**Compiler Flags Explanation:**
-- `/EHsc`: Enable C++ exception handling
-- `/std:c++14`: Use C++14 standard
-- `/O2`: Optimize for speed
-- `/W3`: Warning level 3
-- `/I src`: Include directory for headers
-- `/Fe:build\vm.exe`: Output executable name
-
-#### Debug Build
-
-```cmd
-cl /EHsc /std:c++14 /Od /Zi /W4 /I src ^
-   src\*.cpp ^
-   /Fe:build\vm_debug.exe /Fd:build\vm_debug.pdb
-```
-
-**Debug Flags:**
-- `/Od`: Disable optimizations
-- `/Zi`: Generate debug information
-- `/W4`: Warning level 4 (more strict)
-- `/Fd`: PDB file for debugging
-
-### Option 2: MinGW/GCC
-
-#### Install MinGW-w64
-
-**Via MSYS2 (Recommended):**
-```bash
-# Install MSYS2 from https://www.msys2.org/
-# Open MSYS2 terminal
-pacman -S mingw-w64-x86_64-gcc
-```
-
-**Standalone:**
-- Download from https://sourceforge.net/projects/mingw-w64/
-- Add `bin/` directory to PATH
-
-#### Compile
+The simplest path is the [`makefile`](../makefile), a thin wrapper over CMake.
+Run everything from the project root.
 
 ```bash
-# Navigate to project root
-cd /c/path/to/Virtual-Machine
-
-# Create build directory
-mkdir -p build
-
-# Compile
-g++ -std=c++14 -O2 -Wall -Wextra -I src \
-    src/main.cpp \
-    src/VirtualMachine.cpp \
-    src/CPU.cpp \
-    src/ArithmeticLogicUnit.cpp \
-    src/MemoryIO.cpp \
-    src/Trap.cpp \
-    src/OS.cpp \
-    -o build/vm.exe
-
-# Expected output:
-# (No output if successful)
-# build/vm.exe created
+make            # configure (if needed) + build into out/
+make rebuild    # clean reconfigure + build (use after changing compiler/flags)
+make clean      # delete the out/ build directory
 ```
 
-**GCC Flags:**
-- `-std=c++14`: C++14 standard
-- `-O2`: Optimization level 2
-- `-Wall`: Enable all warnings
-- `-Wextra`: Extra warnings
-- `-I src`: Include directory
+The binary is produced at **`out/executableBinary`**. Sources are globbed from
+`src/` by CMake, so adding or removing a `.cpp` is picked up automatically on
+the next build.
 
-#### Debug Build
+### Using CMake directly
 
 ```bash
-g++ -std=c++14 -g -O0 -Wall -Wextra -I src \
-    src/*.cpp -o build/vm_debug.exe
+cmake -B out          # configure: read CMakeLists.txt, generate build files
+cmake --build out     # compile
 ```
 
-**Debug Flags:**
-- `-g`: Generate debug symbols
-- `-O0`: No optimizations
-
----
-
-## Project Configuration
-
-### Creating a Makefile (Optional)
-
-Create `Makefile` in project root for easier builds:
-
-```makefile
-# Compiler
-CXX = g++
-CXXFLAGS = -std=c++14 -Wall -Wextra -I src
-
-# Directories
-SRC_DIR = src
-BUILD_DIR = build
-
-# Source files
-SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
-OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
-
-# Executable
-TARGET = $(BUILD_DIR)/vm.exe
-
-# Release build
-all: CXXFLAGS += -O2
-all: $(TARGET)
-
-# Debug build
-debug: CXXFLAGS += -g -O0 -DDEBUG
-debug: $(TARGET)
-
-# Link
-$(TARGET): $(OBJECTS)
-	$(CXX) $(OBJECTS) -o $@
-	@echo "Build complete: $@"
-
-# Compile
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Create build directory
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
-
-# Clean
-clean:
-	rm -rf $(BUILD_DIR)
-
-# Run 2048
-run: all
-	$(TARGET) programs/2048.obj
-
-# Run Rogue
-run-rogue: all
-	$(TARGET) programs/rogue.obj
-
-.PHONY: all debug clean run run-rogue
-```
-
-**Usage:**
-```bash
-make              # Release build
-make debug        # Debug build
-make clean        # Clean build artifacts
-make run          # Build and run 2048
-make run-rogue    # Build and run Rogue
-```
+The build enables `-Wall -Wextra` and exports `out/compile_commands.json` for
+clang-tidy / clangd.
 
 ---
 
 ## Running the VM
 
-### Command Line Execution
+The VM takes one or more image **names** on the command line. Each name is
+resolved by `CPU::LoadImage` under the image directory (`images/`, the
+`kImageDir` constant), and a `.obj` extension is appended when none is given —
+so `2048` loads `images/2048.obj`. **Pass the bare name, not a path.**
 
-```cmd
-# From project root
-build\vm.exe programs\2048.obj
+### Convenience targets
 
-# Or navigate to build directory
-cd build
-vm.exe ..\programs\2048.obj
+These run the already-built binary; they do **not** rebuild (build first with
+`make` / `make rebuild`):
+
+```bash
+make run-2048     # → out/executableBinary 2048   (loads images/2048.obj)
+make run-rogue    # → out/executableBinary rogue  (loads images/rogue.obj)
 ```
 
-### Running from Visual Studio
+### Running the binary directly
 
-1. **Set Command Arguments**:
-   - Right-click project → Properties
-   - Debugging → Command Arguments
-   - Enter: `programs\2048.obj`
-
-2. **Run**:
-   - Press F5 (Debug mode)
-   - Or Ctrl+F5 (Run without debugging)
-
-### Verifying Execution
-
-**Successful Launch:**
-```
-[2048 game screen appears]
-Use WASD to play
-Score: 0
+```bash
+./out/executableBinary 2048
+./out/executableBinary rogue
 ```
 
-**Error - No Arguments:**
-```
-usage: vm [image-file1] ...
+### Expected behavior
+
+- **No argument** → the VM throws `no image file provided` and exits non-zero.
+- **Unresolved name** → `failed to load image file` (the name did not resolve to
+  a readable `images/<name>.obj`).
+- **Success** → the game renders; use **WASD** to play, **Ctrl+C** to interrupt.
+  The terminal's input mode is always restored on exit (an RAII guard handles
+  every exit path, including exceptions).
+
+---
+
+## Debug builds
+
+The default `make` build has no debug symbols. For gdb, build the Debug config:
+
+```bash
+make debug                    # cmake -B out --fresh -DCMAKE_BUILD_TYPE=Debug
+gdb --args ./out/executableBinary 2048
 ```
 
-**Error - File Not Found:**
-```
-failed to load image: programs/2048.obj
-```
+VS Code debugging is preconfigured under `.vscode/` (F5 runs `make debug` via
+`preLaunchTask`, then launches gdb). See
+[README_CMAKE.md](README_CMAKE.md#debugging) for the details and how to pass
+command-line arguments through `launch.json`.
 
 ---
 
 ## Troubleshooting
 
-### Build Errors
+#### Configure fails: `gcc-15` / `g++-15` not found
+Install GCC 15 (see Prerequisites), or point CMake at your compiler:
+`cmake -B out -DCMAKE_CXX_COMPILER=g++-15`. After changing the compiler, run
+`make rebuild` so the cached configuration is discarded.
 
-#### Error: "Cannot open include file: 'Windows.h'"
+#### Build errors about `std::expected`, `std::span`, or `std::byteswap`
+The compiler or its standard library is too old for C++23. Confirm `g++-15
+--version` and that it is the compiler CMake selected (check
+`out/compile_commands.json`).
 
-**Solution:**
-- Install Visual Studio with "Desktop development with C++" workload
-- Or install Windows SDK
+#### `failed to load image file`
+The image name did not resolve. Remember the lookup rule: the argument is a bare
+name resolved under `images/` with `.obj` appended. Verify the file exists:
+`ls images/`. A path like `tests/2048.obj` will **not** work — it becomes
+`images/tests/2048.obj`.
 
-#### Error: "Unresolved external symbol"
+#### `no image file provided`
+The binary was run with no argument. Pass an image name (e.g. `2048`).
 
-**Cause**: Not all source files are included in build
+#### Keyboard input is unresponsive, or the terminal is left in a weird state
+Input is switched to raw/no-echo mode while running and restored on exit. If a
+hard kill (e.g. `kill -9`) skips the restore, run `reset` to fix the terminal.
 
-**Solution:**
-- Verify all `.cpp` files are added to project
-- Check that no files are excluded from build
-
-#### Error: "C2143: syntax error: missing ';'"
-
-**Cause**: Header include order or missing includes
-
-**Solution:**
-- Ensure all headers are properly included
-- Check for circular dependencies
-
-### Linker Errors
-
-#### LNK2019: Unresolved external symbol 'main'
-
-**Solution:**
-- Verify `main.cpp` is included in build
-- Check project type is "Console Application"
-
-#### LNK1104: Cannot open file 'build\vm.exe'
-
-**Solution:**
-- Close running VM instance
-- Disable antivirus temporarily
-- Check file permissions
-
-### Runtime Errors
-
-#### "The application was unable to start correctly (0xc000007b)"
-
-**Cause**: 32-bit/64-bit mismatch
-
-**Solution:**
-- Rebuild for correct architecture (x64 or x86)
-- Match all dependencies to same architecture
-
-#### Immediate crash on launch
-
-**Solution:**
-- Run in debugger (F5 in Visual Studio)
-- Check exception details
-- Verify file paths are correct
-
-### Performance Issues
-
-#### Slow execution
-
-**Solutions:**
-1. Build with Release configuration (`/O2` optimization)
-2. Disable debug symbols in release build
-3. Enable whole program optimization
-
-#### Console flickering
-
-**Solution:**
-- Check console buffer settings
-- Verify `DisableInputBuffering()` is called once
+#### `#error "Unsupported Operating System!"`
+`OS` only implements `_WIN32` and `__linux__`. Other platforms are not supported.
 
 ---
 
-## Build Performance Metrics
+## Cross-platform status
 
-| Configuration | Build Time | Executable Size | Optimization |
-|---------------|------------|-----------------|--------------|
-| Debug | ~5 sec | ~150 KB | None (/Od) |
-| Release | ~8 sec | ~50 KB | Max (/O2) |
-| MinGW Debug | ~3 sec | ~200 KB | -O0 |
-| MinGW Release | ~4 sec | ~80 KB | -O2 |
+The emulator builds and runs on **Linux and Windows**. All platform-specific
+code is confined to [`OS`](../src/OS.cpp), chosen at compile time:
 
----
+| Concern | Windows (`_WIN32`) | Linux (`__linux__`) |
+|---------|--------------------|---------------------|
+| Raw/no-echo input | Console API (`GetConsoleMode` / `SetConsoleMode`) | `termios` (clear `ICANON | ECHO`) |
+| Non-blocking key poll | `WaitForSingleObject` + `_kbhit` | zero-timeout `select` |
 
-## Testing the Build
-
-### Quick Test
-
-```cmd
-# Should display usage message
-build\vm.exe
-
-# Should run 2048
-build\vm.exe programs\2048.obj
-
-# Test Ctrl+C handling
-build\vm.exe programs\rogue.obj
-# Press Ctrl+C - should exit cleanly
-```
-
-### Validation Checklist
-
-- [ ] Executable builds without errors
-- [ ] Executable size is reasonable (< 200 KB)
-- [ ] Usage message appears when no arguments provided
-- [ ] 2048.obj loads and runs correctly
-- [ ] rogue.obj loads and runs correctly
-- [ ] Keyboard input is responsive
-- [ ] Ctrl+C exits cleanly
-- [ ] No memory leaks (check with debugger)
+Porting to another platform means adding a branch to `OS` for these two
+concerns; nothing else is platform-dependent.
 
 ---
 
-## Cross-Platform Considerations
-
-**Current Status:** Windows-only due to:
-- `Windows.h` usage in `OS.cpp`
-- Console API calls (`SetConsoleMode`, `WaitForSingleObject`)
-- `_kbhit()` and `_getch()` functions
-
-**Porting to Linux/macOS would require:**
-- Replace Windows console API with `termios` (Linux/macOS)
-- Use `poll()` or `select()` for keyboard polling
-- Replace `_kbhit()` with custom implementation
-- Use ncurses library for terminal control
-
----
-
-## Additional Resources
-
-- **MSVC Compiler Options**: https://docs.microsoft.com/en-us/cpp/build/reference/compiler-options
-- **GCC Documentation**: https://gcc.gnu.org/onlinedocs/
-- **C++ Standards**: https://isocpp.org/std/the-standard
-- **Debugging in Visual Studio**: https://docs.microsoft.com/en-us/visualstudio/debugger/
-
----
-
-**Document Version**: 1.0
-**Last Updated**: January 2026
-**Tested Compilers**: MSVC 2022, MinGW-w64 GCC 11.2
+_Keep this document in sync with [`makefile`](../makefile),
+[`CMakeLists.txt`](../CMakeLists.txt), and the sources under
+[`src/`](../src) and [`include/`](../include)._

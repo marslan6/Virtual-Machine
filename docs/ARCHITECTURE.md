@@ -1,6 +1,9 @@
 # LC-3 Virtual Machine Architecture
 
-This document provides an in-depth technical overview of the LC-3 Virtual Machine implementation, covering system design, data flow, instruction execution, and implementation details.
+This document is an in-depth technical overview of the LC-3 Virtual Machine
+implementation: system design, data flow, instruction execution, and the
+modern-C++ facilities the code relies on. It reflects the current C++23 /
+GCC 15 codebase.
 
 ## Table of Contents
 1. [System Overview](#system-overview)
@@ -16,442 +19,391 @@ This document provides an in-depth technical overview of the LC-3 Virtual Machin
 
 ### Design Philosophy
 
-The LC-3 VM follows a **modular architecture** with clear separation of concerns:
+The VM is a set of small, single-responsibility classes that are constructed in
+`main` and wired together by **dependency injection**: each component receives
+non-owning raw pointers to the collaborators it needs. No component owns
+another, and there are no globals for machine state.
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│                  VirtualMachine                      │
-│         (Orchestration & Control Flow)               │
+│                   VirtualMachine                     │
+│          (orchestration & control flow)              │
 └───────┬──────────────────────────────────────────────┘
-        │ Coordinates execution between components
+        │ drives the fetch-decode-execute loop
         │
-┌───────▼─────┬─────────┬──────────┬─────────┬────────┐
-│             │         │          │         │        │
-▼             ▼         ▼          ▼         ▼        ▼
-CPU          ALU    MemoryIO     Trap      OS
-(State)   (Execute) (Access)  (Services) (Platform)
+┌───────▼─────┬──────────┬──────────┬──────────┬────────┐
+▼             ▼          ▼          ▼          ▼
+CPU          ALU      MemoryIO     Trap        OS
+(registers) (execute) (memory +   (services)  (platform
+            + decode)  MMIO)                    console)
+                       │
+          shared vocabulary: include/Lc3Types.h
+          (aliases, enum class types, constants)
 ```
 
 ### Key Design Principles
 
-1. **Single Responsibility**: Each class handles one aspect (CPU state, instruction execution, I/O, etc.)
-2. **Dependency Injection**: Components are passed references to shared resources
-3. **Encapsulation**: Internal state is protected, accessed through methods
-4. **Modularity**: Components can be tested independently
+1. **Single responsibility** — each class owns one concern (CPU holds the
+   register file; `MemoryIO` holds memory; `OS` isolates the platform).
+2. **Dependency injection** — collaborators are passed as constructor
+   arguments (non-owning pointers), so components can be wired or replaced
+   independently.
+3. **Encapsulation** — internal state is private and reached only through
+   methods (`ReadRegister` / `WriteRegister`, `Read` / `Write`); there is no
+   raw array access from outside a class.
+4. **Type safety** — scoped enums (`enum class`), fixed-width aliases
+   (`Word16`, `Address`), and bounds-checked containers (`std::array::at`)
+   replace raw integers and C arrays.
+5. **Cross-platform** — all OS-specific code is confined to `OS`, selected at
+   compile time (`_WIN32` vs. `__linux__`).
+
+Shared types live in [`include/Lc3Types.h`](../include/Lc3Types.h):
+
+```cpp
+using Word16  = std::uint16_t;   // a machine word / register / memory cell
+using Address = std::uint16_t;   // a 16-bit address
+
+enum class Register : std::uint8_t { R0, R1, R2, R3, R4, R5, R6, R7, PC, COND };
+enum class Opcode   : Word16 { BR = 0, ADD, LD, ST, JSR, AND, LDR, STR,
+                               RTI, NOT, LDI, STI, JMP, RES, LEA, TRAP };
+enum class ImageError : std::uint8_t { FileNotFound, FileNameInvalid,
+                                       CannotOpen, InvalidImage };
+
+namespace Flag {
+    inline constexpr Word16 Positive {0x0001};
+    inline constexpr Word16 Zero     {0x0002};
+    inline constexpr Word16 Negative {0x0004};
+}
+```
 
 ---
 
 ## Component Architecture
 
-### 1. CPU (Central Processing Unit)
+### 1. CPU
 
-**File**: `src/CPU.h`, `src/CPU.cpp`
+**Files:** [`include/CPU.h`](../include/CPU.h), [`src/CPU.cpp`](../src/CPU.cpp)
 
-**Responsibilities:**
-- Register file management
-- Memory storage
-- Condition flag updates
-- Binary image loading
+**Responsibilities:** register file, condition flags, run state, and image
+loading. Memory itself lives in `MemoryIO`; the CPU reaches it through its
+injected `MemoryIO*`.
 
-#### Data Structures
+#### State
 
 ```cpp
 class CPU {
-public:
-    // Register file
-    uint16_t registers[REGISTER_COUNT];  // 10 registers
-
-    // Memory (128 KB = 65,536 words)
-    uint16_t memory[UINT16_MAX];
-
-    // Execution control
-    int running;
+    // ...
+private:
+    std::array<Word16, Lc3Cpu::kRegisterCount> registers{};  // 10 registers
+    MemoryIO* memoryIO;                                        // non-owning
+    bool running = true;
 };
 ```
 
-**Register Enumeration:**
-```cpp
-enum Register {
-    R0 = 0,      // General purpose
-    R1,          // General purpose
-    R2,          // General purpose
-    R3,          // General purpose
-    R4,          // General purpose
-    R5,          // General purpose
-    R6,          // General purpose
-    R7,          // General purpose (also used for JSR return address)
-    R_PC,        // Program Counter (register 8)
-    R_COND,      // Condition flags (register 9)
-    REGISTER_COUNT
-};
-```
-
-**Condition Flags:**
-```cpp
-enum Flag {
-    FL_POSITIVE = 1 << 0,  // 0b001 (1)
-    FL_ZERO     = 1 << 1,  // 0b010 (2)
-    FL_NEGATIVE = 1 << 2   // 0b100 (4)
-};
-```
-
-#### Key Methods
-
-**UpdateFlags(uint16_t reg)**
-- Called after every instruction that modifies a register
-- Checks the value in `registers[reg]`
-- Sets R_COND to FL_POSITIVE, FL_ZERO, or FL_NEGATIVE
-- Uses 2's complement representation (bit 15 = sign bit)
+The constructor puts the CPU in a reset state — COND set to `Zero`, PC set to
+the LC-3 start address `0x3000`:
 
 ```cpp
-void UpdateFlags(uint16_t reg) {
-    if (registers[reg] == 0) {
-        registers[R_COND] = FL_ZERO;
-    } else if (registers[reg] >> 15) {  // Check sign bit
-        registers[R_COND] = FL_NEGATIVE;
-    } else {
-        registers[R_COND] = FL_POSITIVE;
-    }
+CPU::CPU(MemoryIO* memoryIO) : memoryIO(memoryIO) {
+    SetConditionFlag(Flag::Zero);
+    WriteRegister(Register::PC, Lc3Cpu::kPcStart);
 }
 ```
 
-**ReadImage(const char* path)**
-- Opens binary file
-- Reads origin address (first 16-bit word)
-- Loads subsequent words into memory starting at origin
-- Handles byte-order conversion (big-endian → little-endian)
+#### Register access
+
+Registers are reached only through accessors, which bounds-check with
+`std::array::at`. There are two overloads — one typed (`Register`) and one by
+raw index (for a register number decoded from an instruction):
+
+```cpp
+Word16 CPU::ReadRegister(Register registerId) const {
+    return registers.at(std::to_underlying(registerId));   // C++23
+}
+
+Word16 CPU::ReadRegister(std::uint16_t registerId) const {
+    if (registerId >= Lc3Cpu::kRegisterCount)
+        throw std::out_of_range("Register index out of range!");
+    return registers.at(registerId);
+}
+```
+
+#### Condition flags
+
+`UpdateConditionFlags` sets exactly one of `Zero` / `Negative` / `Positive`
+from the sign of a register's value (bit 15 is the sign bit):
+
+```cpp
+void CPU::UpdateConditionFlags(std::uint16_t registerId) {
+    const Word16 value = ReadRegister(registerId);
+    if (value == 0U)                                  SetConditionFlag(Flag::Zero);
+    else if ((value >> Lc3Cpu::kSignBitShift) == 1)   SetConditionFlag(Flag::Negative);
+    else                                              SetConditionFlag(Flag::Positive);
+}
+```
+
+#### Image loading
+
+`LoadImage` reports failures with `std::expected<bool, ImageError>` instead of
+return codes or exceptions. It resolves the name under `kImageDir` (`images/`),
+appends `.obj` when no extension is given, reads the big-endian load address,
+copies the rest into a `std::span` view of memory, and converts each word to
+host byte order:
+
+```cpp
+std::expected<bool, ImageError> CPU::LoadImage(const std::string& fileName) {
+    if (fileName.empty() || fileName.contains(" "))
+        return std::unexpected(ImageError::FileNameInvalid);
+
+    fs::path imagePath = fs::path(Lc3CpuImage::kImageDir) / fileName;
+    if (!imagePath.has_extension()) imagePath += Lc3CpuImage::kImageExt;
+    if (!fs::exists(imagePath))     return std::unexpected(ImageError::FileNotFound);
+
+    std::ifstream file(imagePath, std::ios::binary);
+    if (!file)                      return std::unexpected(ImageError::CannotOpen);
+
+    Address loadAddress{};
+    if (!file.read(reinterpret_cast<char*>(&loadAddress), sizeof(loadAddress)))
+        return std::unexpected(ImageError::InvalidImage);
+    loadAddress = FromBigEndianToHostEndian(loadAddress);
+    if (loadAddress >= memoryIO->GetMemorySize())
+        return std::unexpected(ImageError::InvalidImage);
+
+    std::span<Word16> region = memoryIO->ViewOfMemoryFrom(loadAddress);
+    file.read(reinterpret_cast<char*>(region.data()), region.size_bytes());
+    const auto wordsRead = static_cast<std::size_t>(file.gcount()) / sizeof(Word16);
+    for (Word16& word : region.first(wordsRead))
+        word = FromBigEndianToHostEndian(word);
+
+    return true;
+}
+```
+
+Byte-order conversion is resolved at compile time via `if constexpr` and
+`std::endian`, using the C++23 `std::byteswap`:
+
+```cpp
+Word16 CPU::FromBigEndianToHostEndian(Word16 value) noexcept {
+    if constexpr (std::endian::native == std::endian::little)
+        return std::byteswap(value);
+    return value;                     // host already big-endian: no-op
+}
+```
 
 ---
 
 ### 2. ALU (Arithmetic Logic Unit)
 
-**File**: `src/ArithmeticLogicUnit.h`, `src/ArithmeticLogicUnit.cpp`
+**Files:** [`include/ArithmeticLogicUnit.h`](../include/ArithmeticLogicUnit.h),
+[`src/ArithmeticLogicUnit.cpp`](../src/ArithmeticLogicUnit.cpp)
 
-**Responsibilities:**
-- Decode and execute all 15 LC-3 opcodes
-- Sign extension for immediate values
-- Byte-order conversion utilities
+**Responsibilities:** one handler per instruction, plus static field decoders.
+The ALU never touches registers or memory directly — it calls
+`cpu->ReadRegister` / `cpu->WriteRegister` and `memoryIO->Read` / `Write`.
 
-#### Opcode Enumeration
+#### Instruction handlers
+
+Each opcode has a method (`ADD`, `AND`, `NOT`, `BR`, `JMP`, `JSR`, `LD`, `LDR`,
+`LDI`, `LEA`, `ST`, `STR`, `STI`). Example — `ADD`:
 
 ```cpp
-enum Opcode {
-    OP_BR = 0,   // Branch
-    OP_ADD,      // Add
-    OP_LD,       // Load
-    OP_ST,       // Store
-    OP_JSR,      // Jump register
-    OP_AND,      // Bitwise AND
-    OP_LDR,      // Load register
-    OP_STR,      // Store register
-    OP_RTI,      // Return from interrupt (unused)
-    OP_NOT,      // Bitwise complement
-    OP_LDI,      // Load indirect
-    OP_STI,      // Store indirect
-    OP_JMP,      // Jump
-    OP_RES,      // Reserved (unused)
-    OP_LEA,      // Load effective address
-    OP_TRAP      // Execute trap
-};
-```
+void ArithmeticLogicUnit::ADD(Word16 instruction) {
+    std::uint16_t DR  = GetDestinationRegister(instruction);  // bits [11:9]
+    std::uint16_t SR1 = GetSource1Register(instruction);      // bits [8:6]
 
-#### Instruction Implementation Examples
-
-**ADD (OP_ADD = 0b0001)**
-
-Instruction format:
-```
-┌────┬────┬────┬─┬──────┬───┐  Register mode
-│0001│ DR │SR1 │0│  00  │SR2│
-└────┴────┴────┴─┴──────┴───┘
-
-┌────┬────┬────┬─┬─────────┐  Immediate mode
-│0001│ DR │SR1 │1│  imm5   │
-└────┴────┴────┴─┴─────────┘
-```
-
-Implementation:
-```cpp
-case OP_ADD: {
-    uint16_t dest_reg = (instruction >> 9) & 0x7;     // Bits [11:9]
-    uint16_t source_reg = (instruction >> 6) & 0x7;   // Bits [8:6]
-    uint16_t imm_flag = (instruction >> 5) & 0x1;     // Bit [5]
-
-    if (imm_flag) {
-        // Immediate mode
-        uint16_t imm5 = SignExtend(instruction & 0x1F, 5);
-        registers[dest_reg] = registers[source_reg] + imm5;
+    if (GetImmediateFlag(instruction)) {                      // bit [5]
+        cpu->WriteRegister(DR, cpu->ReadRegister(SR1) + GetImmediate5(instruction));
     } else {
-        // Register mode
-        uint16_t second_reg = instruction & 0x7;      // Bits [2:0]
-        registers[dest_reg] = registers[source_reg] + registers[second_reg];
+        std::uint16_t SR2 = GetSource2Register(instruction);  // bits [2:0]
+        cpu->WriteRegister(DR, cpu->ReadRegister(SR1) + cpu->ReadRegister(SR2));
     }
-
-    UpdateFlags(dest_reg);
-    break;
+    cpu->UpdateConditionFlags(DR);
 }
 ```
 
-**BR (Conditional Branch - OP_BR = 0b0000)**
+`BR` branches when the instruction's condition codes overlap the COND register:
 
-Instruction format:
-```
-┌────┬─┬─┬─┬────────────┐
-│0000│n│z│p│  PCoffset9 │
-└────┴─┴─┴─┴────────────┘
-```
-
-Implementation:
 ```cpp
-case OP_BR: {
-    uint16_t condition = (instruction >> 9) & 0x7;  // nzp flags
-    uint16_t pc_offset = SignExtend(instruction & 0x1FF, 9);
-
-    // Branch if ANY of the specified condition flags match
-    if (condition & registers[R_COND]) {
-        registers[R_PC] += pc_offset;
-    }
-    break;
+void ArithmeticLogicUnit::BR(Word16 instruction) {
+    std::uint16_t pcOffset      = GetPcOffset9(instruction);
+    std::uint16_t conditionFlag = (instruction >> 9) & 0x0007;
+    if ((conditionFlag & cpu->ReadRegister(Register::COND)) != 0)
+        cpu->WriteRegister(Register::PC, cpu->ReadRegister(Register::PC) + pcOffset);
 }
 ```
 
-**LDI (Load Indirect - OP_LDI = 0b1010)**
+`JMP` doubles as `RET` (jump to the base register, R7 for `RET`); `JSR` saves
+the return address in R7 and jumps by an 11-bit offset (`JSR`) or to a base
+register (`JSRR`).
 
-Double indirection:
-```
-R0 = memory[memory[PC + offset]]
-```
+#### Field decoders
 
-Instruction format:
-```
-┌────┬────┬────────────┐
-│1010│ DR │  PCoffset9 │
-└────┴────┴────────────┘
-```
-
-Implementation:
-```cpp
-case OP_LDI: {
-    uint16_t dest_reg = (instruction >> 9) & 0x7;
-    uint16_t pc_offset = SignExtend(instruction & 0x1FF, 9);
-
-    // First indirection: get address
-    uint16_t address = memory[registers[R_PC] + pc_offset];
-
-    // Second indirection: get value at that address
-    registers[dest_reg] = memoryIO->Read(address);
-
-    UpdateFlags(dest_reg);
-    break;
-}
-```
-
-#### Utility Functions
-
-**SignExtend(uint16_t value, int bit_count)**
-- Extends a smaller value to 16 bits preserving sign
-- Used for immediate values (5-bit, 6-bit, 9-bit, 11-bit)
-- Critical for proper 2's complement arithmetic
+Instruction fields are decoded by `static` helpers, keeping the handlers
+declarative. `SignExtend` extends a narrow value to 16 bits for 2's-complement
+arithmetic:
 
 ```cpp
-uint16_t SignExtend(uint16_t value, int bit_count) {
-    // Check if sign bit is set
-    if ((value >> (bit_count - 1)) & 1) {
-        // Extend with 1s
-        value |= (0xFFFF << bit_count);
-    }
+std::uint16_t ArithmeticLogicUnit::SignExtend(std::uint16_t value,
+                                              std::uint32_t bitCount) noexcept {
+    if (((value >> (bitCount - 1)) & 0x0001) != 0)            // sign bit set
+        return static_cast<std::uint16_t>(value | (0xFFFF << bitCount));
     return value;
 }
 ```
 
-Example:
-```
-5-bit value: 11011 (-5 in 2's complement)
-SignExtend(0b11011, 5) = 0b1111111111111011 = 0xFFFB = -5
-```
-
-**Swap16(uint16_t value)**
-- Converts between big-endian and little-endian
-- LC-3 files are big-endian, x86 is little-endian
-
-```cpp
-uint16_t Swap16(uint16_t value) {
-    return (value << 8) | (value >> 8);
-}
-```
+Other decoders: `GetDestinationRegister` (`[11:9]`), `GetSource1Register`
+(`[8:6]`), `GetSource2Register` (`[2:0]`), `GetImmediateFlag` (`[5]`),
+`GetImmediate5`, `GetPcOffset9`, and `GetOffset6` (the last three sign-extend).
 
 ---
 
-### 3. MemoryIO (Memory Access Layer)
+### 3. MemoryIO
 
-**File**: `src/MemoryIO.h`, `src/MemoryIO.cpp`
+**Files:** [`include/MemoryIO.h`](../include/MemoryIO.h),
+[`src/MemoryIO.cpp`](../src/MemoryIO.cpp)
 
-**Responsibilities:**
-- Intercept memory reads for device registers
-- Handle keyboard input via memory-mapped I/O
-- Provide transparent access to regular memory
-
-#### Memory-Mapped Registers
+**Responsibilities:** owns the 65,536-word memory array and mediates every
+access, transparently handling memory-mapped keyboard I/O.
 
 ```cpp
-enum MemoryMappedRegister {
-    MR_KBSR = 0xFE00,  // Keyboard Status Register
-    MR_KBDR = 0xFE02   // Keyboard Data Register
+class MemoryIO {
+    // ...
+private:
+    std::array<Word16, Lc3Cpu::kMemoryMax> memory{};   // 64K words
+    OS* os;                                             // non-owning
 };
 ```
 
-**KBSR (Keyboard Status Register - 0xFE00):**
-- Bit 15: Ready bit (1 = key available, 0 = no key)
-- Bits 14-0: Unused
-
-**KBDR (Keyboard Data Register - 0xFE02):**
-- Bits 7-0: ASCII character code
-- Bits 15-8: Unused
-
-#### Read Implementation
+`Read` is non-`const`: reading the keyboard-status address (`0xFE00`) polls the
+keyboard through the OS and updates the status/data registers. Every access is
+bounds-checked:
 
 ```cpp
-uint16_t Read(uint16_t address) {
-    if (address == MR_KBSR) {
-        // Check if keyboard has input
+Word16 MemoryIO::Read(const Address address) {
+    if (address >= memory.size())
+        throw std::out_of_range("MemoryIO::Read: address exceeds memory size");
+    if (os == nullptr)
+        throw std::runtime_error("MemoryIO::Read: OS pointer is null");
+
+    if (address == Lc3MemoryIO::kKeyboardStatusAddress) {
         if (os->CheckKey()) {
-            memory[MR_KBSR] = (1 << 15);    // Set ready bit
-            memory[MR_KBDR] = getchar();     // Read character
+            memory[Lc3MemoryIO::kKeyboardStatusAddress] =
+                static_cast<Word16>(1U << Lc3MemoryIO::kKeyboardReadyBit);
+            memory[Lc3MemoryIO::kKeyboardDataAddress] =
+                static_cast<Word16>(getchar());
         } else {
-            memory[MR_KBSR] = 0;             // Clear ready bit
+            memory[Lc3MemoryIO::kKeyboardStatusAddress] = 0;
         }
     }
-    return memory[address];
+    return memory.at(address);
 }
 ```
 
-**Write Implementation:**
+`ViewOfMemoryFrom(startAddress)` hands out a `std::span<Word16>` from an address
+to the end of memory — used by the image loader and by the trap string routines,
+so neither reaches into the array directly.
+
+---
+
+### 4. Trap
+
+**Files:** [`include/Trap.h`](../include/Trap.h), [`src/Trap.cpp`](../src/Trap.cpp)
+
+**Responsibilities:** the six LC-3 service routines, dispatched from the `TRAP`
+instruction. Output uses C++ iostreams (`std::cout` / `std::cin`), not C stdio.
+
+`Proxy` preserves the return address in R7 (routines may clobber the PC) and
+switches on the trap vector (the low byte of the instruction):
+
 ```cpp
-void Write(uint16_t address, uint16_t value) {
-    memory[address] = value;
+void Trap::Proxy(Word16 instruction) {
+    cpu->WriteRegister(Register::R7, cpu->ReadRegister(Register::PC));
+    switch (static_cast<TrapVector>(instruction & Lc3Trap::kLowByteMask)) {
+        case TrapVector::GetChar:    GETC();  break;
+        case TrapVector::Out:        OUTC();  break;
+        case TrapVector::PutString:  PUTS();  break;
+        case TrapVector::In:         INC();   break;
+        case TrapVector::PutStringP: PUTSP(); break;
+        case TrapVector::Halt:       HALT();  break;
+        default: throw std::runtime_error("Trap::Proxy: unknown trap vector");
+    }
+}
+```
+
+| Vector | Routine | Behavior |
+|--------|---------|----------|
+| `0x20` | `GETC`  | Read one char (not echoed) into R0 |
+| `0x21` | `OUTC`  | Write the char in R0 |
+| `0x22` | `PUTS`  | Write a one-char-per-word string from `[R0]` until a 0 word |
+| `0x23` | `INC`   | Prompt, read one char (echoed) into R0 |
+| `0x24` | `PUTSP` | Write a two-chars-per-word (packed) string from `[R0]` |
+| `0x25` | `HALT`  | Print `HALT` and call `cpu->Stop()` |
+
+The string routines walk a span rather than a raw pointer:
+
+```cpp
+std::span<Word16> Trap::StringAtR0() {
+    return memoryIO->ViewOfMemoryFrom(cpu->ReadRegister(Register::R0));
+}
+
+void Trap::PUTS() {
+    for (const Word16 word : StringAtR0()) {
+        if (word == 0) break;
+        std::cout << static_cast<char>(word);
+    }
+    std::cout << std::flush;
 }
 ```
 
 ---
 
-### 4. Trap Handler
+### 5. OS (platform layer)
 
-**File**: `src/Trap.h`, `src/Trap.cpp`
+**Files:** [`include/OS.h`](../include/OS.h), [`src/OS.cpp`](../src/OS.cpp)
 
-**Responsibilities:**
-- Provide system services via TRAP instruction
-- Handle I/O operations (character, string)
-- Manage program termination
-
-#### Trap Codes
+**Responsibilities:** console input mode, non-blocking keyboard polling, and
+interrupt handling. This is the only platform-specific code; an unsupported
+platform fails the build with `#error`.
 
 ```cpp
-enum TrapCode {
-    TRAP_GETC  = 0x20,  // Get character (no echo)
-    TRAP_OUT   = 0x21,  // Output character
-    TRAP_PUTS  = 0x22,  // Output string
-    TRAP_IN    = 0x23,  // Get character (with echo)
-    TRAP_PUTSP = 0x24,  // Output packed byte string
-    TRAP_HALT  = 0x25   // Halt execution
-};
+#if defined(_WIN32)
+    #include <windows.h>
+#elif defined(__linux__)
+    #include <termios.h>
+    #include <unistd.h>
+#else
+    #error "Unsupported Operating System!"
+#endif
 ```
 
-#### Trap Implementations
+`DisableInputBuffering` switches the console to unbuffered, no-echo input and
+saves the previous mode; `RestoreInputBuffering` puts it back. On Windows this
+uses the Console API (`GetConsoleMode` / `SetConsoleMode`); on Linux it uses
+`termios` (clearing `ICANON | ECHO`). `CheckKey` polls without blocking —
+`WaitForSingleObject` + `_kbhit` on Windows, a zero-timeout `select` on Linux —
+and returns `bool`:
 
-**TRAP_GETC (0x20)**
 ```cpp
-// Read single character, no echo
-// Store in R0
-int c = getchar();
-registers[R0] = (uint16_t)c;
-```
-
-**TRAP_PUTS (0x22)**
-```cpp
-// Output null-terminated string
-// R0 contains starting address
-uint16_t* ptr = memory + registers[R0];
-while (*ptr) {
-    putc((char)*ptr, stdout);
-    ptr++;
-}
-fflush(stdout);
-```
-
-**TRAP_PUTSP (0x24)**
-```cpp
-// Output packed byte string (2 chars per word)
-// R0 contains starting address
-uint16_t* ptr = memory + registers[R0];
-while (*ptr) {
-    char char1 = (*ptr) & 0xFF;         // Low byte
-    putc(char1, stdout);
-
-    char char2 = (*ptr) >> 8;           // High byte
-    if (char2) putc(char2, stdout);
-
-    ptr++;
-}
-fflush(stdout);
-```
-
-**TRAP_HALT (0x25)**
-```cpp
-// Stop execution
-cpu->running = 0;
-puts("HALT");
-fflush(stdout);
-```
-
----
-
-### 5. OS (Operating System Interface)
-
-**File**: `src/OS.h`, `src/OS.cpp`
-
-**Responsibilities:**
-- Platform-specific console I/O
-- Input buffering control
-- Keyboard polling
-- Signal handling
-
-#### Windows Console Mode Management
-
-**DisableInputBuffering()**
-```cpp
-void DisableInputBuffering() {
-    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
-    DWORD mode;
-    GetConsoleMode(hStdin, &mode);
-
-    // Disable echo and line input
-    mode &= ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT);
-    SetConsoleMode(hStdin, mode);
-
-    FlushConsoleInputBuffer(hStdin);
+bool OS::CheckKey() noexcept {
+#if defined(_WIN32)
+    return (WaitForSingleObject(hStdin, 0) == WAIT_OBJECT_0) && _kbhit();
+#elif defined(__linux__)
+    fd_set readfds; FD_ZERO(&readfds); FD_SET(hStdin, &readfds);
+    timeval timeout{};                          // zero timeout: poll, don't block
+    return select(hStdin + 1, &readfds, nullptr, nullptr, &timeout) > 0;
+#endif
 }
 ```
 
-**RestoreInputBuffering()**
+Interrupts (Ctrl+C) are handled safely: the signal handler only sets an
+async-signal-safe flag, which the main loop observes through normal control
+flow:
+
 ```cpp
-void RestoreInputBuffering() {
-    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
-    DWORD mode;
-    GetConsoleMode(hStdin, &mode);
+volatile std::sig_atomic_t OS::interruptRequested = 0;
 
-    // Re-enable echo and line input
-    mode |= (ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT);
-    SetConsoleMode(hStdin, mode);
-}
-```
-
-#### Keyboard Polling
-
-**CheckKey()**
-```cpp
-uint16_t CheckKey() {
-    // Wait for input with 1 second timeout
-    return WaitForSingleObject(hStdin, 1000) == WAIT_OBJECT_0 && _kbhit();
+void OS::HandleInterruptWrapper([[maybe_unused]] int signalNumber) noexcept {
+    interruptRequested = 1;
 }
 ```
 
@@ -463,64 +415,61 @@ uint16_t CheckKey() {
 
 ```
 ┌─────────────┐
-│   FETCH     │  1. Read instruction from memory[PC]
-│ instruction │  2. Increment PC
-│   @ PC      │
+│   FETCH     │  read memory[PC], then PC = PC + 1
 └──────┬──────┘
-       │
        ▼
 ┌─────────────┐
-│   DECODE    │  1. Extract opcode (bits 15-12)
-│   opcode    │  2. Extract operands (bits 11-0)
-│             │
+│   DECODE    │  opcode = instruction >> 12   (bits [15:12])
 └──────┬──────┘
-       │
        ▼
 ┌─────────────┐
-│  EXECUTE    │  1. Dispatch to ALU or Trap
-│ instruction │  2. Perform operation
-│             │  3. Update registers/memory
+│  EXECUTE    │  dispatch to the ALU handler or Trap::Proxy
 └──────┬──────┘
-       │
        ▼
 ┌─────────────┐
-│   UPDATE    │  1. Update condition flags (if needed)
-│    FLAGS    │  2. Check for interrupts (future)
-│             │
+│   FLAGS     │  the handler updates COND when it writes a register
 └──────┬──────┘
-       │
-       └──────→ Repeat until HALT
+       └──────→ repeat while running and no interrupt
 ```
 
 ### Main Execution Loop
 
+`RunVirtualMachine` takes the command line as a `std::span<const char*>`, loads
+every named image, installs the interrupt handler, enables raw input through an
+RAII guard, then runs the loop. An unused opcode (`RTI`, `RES`) throws.
+
 ```cpp
-void RunVirtualMachine(int argc, const char* argv[]) {
-    // 1. Load program
-    cpu->ReadImage(argv[1]);
+void VirtualMachine::RunVirtualMachine(std::span<const char*> args) {
+    if (args.size() < 2) throw std::runtime_error("no image file provided");
 
-    // 2. Set PC to start address
-    cpu->registers[R_PC] = PC_START;  // 0x3000
+    for (const char* imagePath : args.subspan(1))            // args[0] is argv[0]
+        if (!cpu->LoadImage(imagePath))
+            throw std::runtime_error("failed to load image file");
 
-    // 3. Main loop
-    while (cpu->running) {
-        // FETCH
-        uint16_t instruction = cpu->memory[cpu->registers[R_PC]++];
+    std::signal(SIGINT, OS::HandleInterruptWrapper);
+    ScopedRawInput rawInput(os);                             // RAII: restores on exit
 
-        // DECODE
-        uint16_t opcode = instruction >> 12;  // Top 4 bits
+    while (cpu->IsRunning() && !OS::InterruptRequested()) {
+        Word16 instruction = memoryIO->Read(cpu->ReadRegister(Register::PC));
+        cpu->WriteRegister(Register::PC, cpu->ReadRegister(Register::PC) + 1);
 
-        // EXECUTE
-        switch (opcode) {
-            case OP_ADD:  alu->ADD(instruction); break;
-            case OP_AND:  alu->AND(instruction); break;
-            case OP_BR:   alu->BR(instruction); break;
-            // ... other opcodes ...
-            case OP_TRAP: trap->Proxy(instruction); break;
+        switch (static_cast<Opcode>(instruction >> 12)) {
+            case Opcode::ADD:  alu->ADD(instruction);  break;
+            case Opcode::AND:  alu->AND(instruction);  break;
+            // ... remaining ALU opcodes ...
+            case Opcode::TRAP: trap->Proxy(instruction); break;
+            case Opcode::RTI:
+            case Opcode::RES:
+            default: throw std::runtime_error("illegal opcode");
         }
     }
 }
 ```
+
+`ScopedRawInput` is a small RAII guard defined in an anonymous namespace: it
+disables input buffering in its constructor and restores it in its destructor,
+so the terminal is reset on **every** exit path, including stack unwinding from
+a thrown exception.
 
 ---
 
@@ -534,27 +483,22 @@ Address Range    │ Size   │ Contents
 0x0000 - 0x00FF  │ 256 B  │ Trap Vector Table
 0x0100 - 0x01FF  │ 256 B  │ Interrupt Vector Table
 0x0200 - 0x2FFF  │ 11.5KB │ OS / Supervisor Space
-0x3000 - 0xFDFF  │ 51.5KB │ User Program Space
+0x3000 - 0xFDFF  │ 51.5KB │ User Program Space  (PC starts at 0x3000)
 0xFE00 - 0xFE01  │ 2 B    │ Keyboard Status (KBSR)
-0xFE02 - 0xFE03  │ 2 B    │ Keyboard Data (KBDR)
+0xFE02 - 0xFE03  │ 2 B    │ Keyboard Data   (KBDR)
 0xFE04 - 0xFFFF  │ 506 B  │ Device Registers (reserved)
 ```
 
-### Memory Access Patterns
+Memory is a single `std::array<Word16, 65536>` owned by `MemoryIO`. The
+device-register addresses and the keyboard-ready bit are named constants in the
+`Lc3MemoryIO` namespace of `Lc3Types.h`.
 
-**Direct Addressing:**
-```
-LD R0, LABEL    ; R0 = memory[PC + offset]
-```
+### Addressing Modes
 
-**Indirect Addressing:**
 ```
-LDI R0, LABEL   ; R0 = memory[memory[PC + offset]]
-```
-
-**Register Offset:**
-```
-LDR R0, R1, #6  ; R0 = memory[R1 + 6]
+LD  R0, LABEL     ; R0 = memory[PC + sext(offset9)]          (PC-relative)
+LDI R0, LABEL     ; R0 = memory[memory[PC + sext(offset9)]]  (indirect)
+LDR R0, R1, #6    ; R0 = memory[R1 + sext(offset6)]          (base + offset)
 ```
 
 ---
@@ -564,88 +508,57 @@ LDR R0, R1, #6  ; R0 = memory[R1 + 6]
 ### Input Flow
 
 ```
-┌──────────────┐
-│  Keyboard    │
-└──────┬───────┘
-       │ User presses key
-       ▼
-┌──────────────┐
-│   OS.cpp     │
-│  CheckKey()  │  Polls with timeout
-└──────┬───────┘
-       │ Key detected
-       ▼
-┌──────────────┐
-│ MemoryIO.cpp │
-│   Read()     │  Sets KBSR bit 15
-└──────┬───────┘  Stores char in KBDR
-       │
-       ▼
-┌──────────────┐
-│   Program    │
-│  reads KBSR  │  Checks bit 15
-│  reads KBDR  │  Gets character
-└──────────────┘
+Keyboard ──▶ OS::CheckKey() ──▶ MemoryIO::Read(0xFE00) ──▶ program
+ keypress    non-blocking poll   sets KBSR ready bit,        reads KBSR,
+                                 stores char in KBDR          reads KBDR
 ```
+
+A program reads `KBSR` (`0xFE00`); the `Read` interceptor polls the keyboard and,
+if a key is ready, sets bit 15 and loads the character into `KBDR` (`0xFE02`).
 
 ### Output Flow
 
 ```
-┌──────────────┐
-│   Program    │
-│ TRAP_OUT or  │
-│  TRAP_PUTS   │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│   Trap.cpp   │
-│   Proxy()    │  Dispatches to handler
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│   putc() or  │
-│   puts()     │  C standard library
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│   Console    │  Character displayed
-└──────────────┘
+program ──▶ Trap::Proxy() ──▶ OUTC/PUTS/PUTSP ──▶ std::cout ──▶ console
+ TRAP        dispatch          routine             (flushed)
 ```
+
+Output traps write through `std::cout` and flush, so characters appear
+immediately even in raw-input mode.
 
 ---
 
 ## Implementation Details
 
-### Performance Optimizations
+### Modern C++ facilities used
 
-1. **Direct array access**: No pointer indirection for memory/registers
-2. **Switch-based dispatch**: Faster than function pointer table
-3. **Inline flag checks**: Minimal overhead for condition flags
-4. **Minimal abstraction**: Direct hardware simulation, no virtualization layers
+| Standard | Facility | Role in the VM |
+|----------|----------|----------------|
+| C++23 | `std::expected` / `std::unexpected` | Typed image-load errors from `LoadImage` |
+| C++23 | `std::byteswap` | Endian conversion of image words |
+| C++23 | `std::to_underlying` | Register/enum → index without a cast |
+| C++20 | `std::span` | Views over `argv` and memory regions |
+| C++20 | `std::endian` | Compile-time host-endianness check |
+| C++17 | `if constexpr`, inline `constexpr`, `[[nodiscard]]` | Compile-time branches, header constants, attribute hygiene |
+| C++11 | `enum class`, `std::array`, `noexcept`, `= default`/`= delete` | Type-safe enums, bounds-checked storage, RAII guard |
 
-### Limitations
+See the project [README](../README.md#modern-c-features) for the full table.
 
-1. **No interrupt system**: RTI instruction is reserved but not implemented
-2. **Windows-only**: Platform-specific console APIs
-3. **Single-threaded**: No concurrent execution
-4. **No privilege modes**: All code runs at same level
+### Current limitations
 
-### Extension Points
+1. **No interrupt instruction** — `RTI` is reserved; executing it throws.
+2. **Single-threaded** — one fetch-decode-execute loop, no concurrency.
+3. **No privilege modes** — all code runs at one level.
 
-**Adding New Devices:**
-1. Define new memory-mapped register addresses
-2. Extend `MemoryIO::Read()` with device-specific logic
-3. Implement device-specific trap codes
+### Extension points
 
-**Adding Debugging:**
-1. Add breakpoint support in main loop
-2. Implement register/memory inspection
-3. Add step execution mode
+- **New devices:** add memory-mapped addresses in `Lc3Types.h` and extend
+  `MemoryIO::Read` / `Write`.
+- **New services:** add a `TrapVector` entry and a routine in `Trap`.
+- **Debugging:** hook the main loop in `RunVirtualMachine` for breakpoints,
+  single-step, and register/memory inspection.
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: January 2026
+_This document tracks the C++23 implementation; keep it in sync with the sources
+under [`src/`](../src) and [`include/`](../include)._
