@@ -1,0 +1,100 @@
+# ---------------------------------------------------------------------------
+# Continuous Integration for the LC-3 Virtual Machine.
+#
+# Runs on every push and pull request. Three independent jobs run in parallel:
+#   1. build     - configure + build (warnings are errors) + a smoke run
+#   2. sanitizers - build with Address/UndefinedBehavior sanitizers + smoke run
+#   3. tidy      - clang-tidy static analysis (reports findings)
+#
+# A job fails if any of its steps exits non-zero; that marks the commit red.
+# ---------------------------------------------------------------------------
+name: CI
+
+# When to run. push = direct commits; pull_request = PRs targeting the repo.
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  # =========================================================================
+  build:
+    name: Build & smoke test (GCC 15, C++23)
+    runs-on: ubuntu-24.04
+    steps:
+      # Clones your repo into the runner. Always the first step.
+      - uses: actions/checkout@v4
+
+      # The build pins g++-15, which is not preinstalled; add it.
+      - name: Install GCC 15
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-15
+          g++-15 --version
+
+      - name: Configure (Release)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      # Smoke test: a 4-byte LC-3 image that loads at 0x3000 and immediately
+      # executes TRAP HALT (0xF025). The VM must run it and exit 0.
+      - name: Smoke test (runs a HALT image)
+        run: |
+          printf '\x30\x00\xf0\x25' > images/halt.obj
+          ./build/executableBinary halt < /dev/null
+          echo "exit code: $?"
+
+  # =========================================================================
+  sanitizers:
+    name: AddressSanitizer + UBSan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GCC 15
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-15
+
+      # Compile the sources directly with the sanitizers switched on. ASan
+      # catches out-of-bounds and leaks; UBSan catches undefined behavior.
+      - name: Build with sanitizers
+        run: |
+          g++-15 -std=c++23 -Iinclude \
+            -fsanitize=address,undefined -fno-omit-frame-pointer -g -O1 \
+            -o vm_san src/*.cpp
+
+      - name: Run under sanitizers (must be clean)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1   # any UB fails the job
+        run: |
+          printf '\x30\x00\xf0\x25' > images/halt.obj
+          ./vm_san halt < /dev/null
+
+  # =========================================================================
+  tidy:
+    name: clang-tidy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-15 clang-tidy
+
+      # Configure once so CMake writes build/compile_commands.json. clang-tidy
+      # reads it (via -p) to analyze each file with the real build flags.
+      - name: Configure (for compile_commands.json)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Debug
+
+      # Reports findings. It does not fail the job yet (no --warnings-as-errors).
+      # To make clang-tidy a hard gate, add:  --warnings-as-errors='*'
+      - name: Run clang-tidy
+        run: clang-tidy -p build $(find src include -name '*.cpp' -o -name '*.h')
