@@ -95,3 +95,25 @@ jobs:
       - name: Run clang-tidy
         continue-on-error: true
         run: clang-tidy -p out $(find src include -name '*.cpp' -o -name '*.h')
+
+  # =========================================================================
+  windows:
+    name: Windows build & smoke test (MSVC)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # No compiler install: windows-latest ships MSVC and CMake. The CMakeLists
+      # only pins g++-15 on non-Windows hosts, so here CMake picks MSVC.
+      - name: Configure
+        run: cmake -B build
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      # Same HALT smoke test as Linux, written in PowerShell (the default shell).
+      - name: Smoke test (runs a HALT image)
+        run: |
+          [IO.File]::WriteAllBytes("images/halt.obj", [byte[]](0x30,0x00,0xF0,0x25))
+          ./build/Release/executableBinary.exe halt
+          if ($LASTEXITCODE -ne 0) { exit 1 }

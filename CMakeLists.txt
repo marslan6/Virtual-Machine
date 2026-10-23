@@ -3,9 +3,15 @@
 # Ref: https://cmake.org/cmake/help/latest/prop_tgt/CXX_STANDARD.html
 cmake_minimum_required(VERSION 3.20)
 
-# Force this project to build with GCC 15.
-set(CMAKE_C_COMPILER gcc-15)
-set(CMAKE_CXX_COMPILER g++-15)
+# Pin GCC 15 on non-Windows hosts, unless the user already chose a compiler
+# (e.g. via -DCMAKE_CXX_COMPILER or a toolchain file). On Windows the native
+# toolchain (MSVC, or MinGW if the user selects it) is used instead, so the
+# project configures out of the box there too. CMAKE_HOST_WIN32 is set before
+# project(), unlike WIN32, so it is safe to test here.
+if(NOT CMAKE_HOST_WIN32 AND NOT DEFINED CMAKE_CXX_COMPILER)
+    set(CMAKE_C_COMPILER gcc-15)
+    set(CMAKE_CXX_COMPILER g++-15)
+endif()
 
 # Project name (and implicitly enables C and C++ support).
 # Required exactly once per project.
@@ -34,5 +40,9 @@ add_executable(executableBinary ${SOURCES})
 
 # TODO: Configure executable name
 # Warnings — after the target, scoped to it. Warnings often hint at bugs.
-# Add these flags to just executableBinary.bin. Scoped. Precise.
-target_compile_options(executableBinary PRIVATE -Wall -Wextra)
+# The flags differ per compiler: GCC/Clang use -Wall -Wextra, MSVC uses /W4.
+if(MSVC)
+    target_compile_options(executableBinary PRIVATE /W4)
+else()
+    target_compile_options(executableBinary PRIVATE -Wall -Wextra)
+endif()
