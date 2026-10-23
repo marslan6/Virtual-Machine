@@ -6,14 +6,12 @@
 [![Build](https://img.shields.io/badge/Build-CMake%203.20%2B-064F8C)](https://cmake.org/)
 [![Architecture](https://img.shields.io/badge/Architecture-LC--3-red)](https://en.wikipedia.org/wiki/Little_Computer_3)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/marslan6/Virtual-Machine/actions/workflows/ci.yml/badge.svg)](https://github.com/marslan6/Virtual-Machine/actions/workflows/ci.yml)
 
 A software implementation of the **LC-3 (Little Computer 3)** 16-bit
 computer architecture, written in **modern C++23**. The emulator executes
 compiled LC-3 object files and ships with two playable programs: **2048** and
 **Rogue**.
-
-[![CI](https://github.com/OWNER/Virtual-Machine/actions/workflows/ci.yml/badge.svg)](https://github.com/marslan6/Virtual-Machine/actions/workflows/ci.yml)
-
 
 The codebase has moved well beyond its original C++11 / Windows-only form: it is
 now cross-platform (Linux and Windows), built with CMake and GCC 15, organized
