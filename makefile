@@ -45,3 +45,9 @@ debug:
 rebuild:
 	cmake -B $(BUILD_DIR) --fresh
 	cmake --build $(BUILD_DIR)
+
+# Build a sanitized binary (AddressSanitizer + UndefinedBehaviorSanitizer).
+# Produces ./vm_san. Used locally and in CI to catch memory and UB errors.
+.PHONY: sanitize
+sanitize:
+	g++-15 -std=c++23 -Iinclude -fsanitize=address,undefined -fno-omit-frame-pointer -g -O1 -o vm_san src/*.cpp
