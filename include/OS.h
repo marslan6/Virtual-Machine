@@ -14,6 +14,10 @@ Copyright (c) 2024 Mehmet Arslan
 
 #if defined(_WIN32)
 #include <windows.h>
+// <windows.h> defines LoadImage as a macro (LoadImageA / LoadImageW). Without
+// this undef it would rewrite CPU::LoadImage calls in files that include OS.h
+// and break the build. The project never uses the Win32 LoadImage function.
+#undef LoadImage
 #elif defined(__linux__)
 #include <termios.h>
 #include <unistd.h>
