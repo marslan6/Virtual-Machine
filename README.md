@@ -12,6 +12,9 @@ computer architecture, written in **modern C++23**. The emulator executes
 compiled LC-3 object files and ships with two playable programs: **2048** and
 **Rogue**.
 
+[![CI](https://github.com/OWNER/Virtual-Machine/actions/workflows/ci.yml/badge.svg)](https://github.com/marslan6/Virtual-Machine/actions/workflows/ci.yml)
+
+
 The codebase has moved well beyond its original C++11 / Windows-only form: it is
 now cross-platform (Linux and Windows), built with CMake and GCC 15, organized
 around small single-responsibility components wired together by dependency
